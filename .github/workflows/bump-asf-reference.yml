@@ -1,0 +1,100 @@
+name: Bump ASF Reference
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 8 * * 1'
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update bundled ASF references
+        id: update
+        run: |
+          python <<'PY'
+          import json
+          import hashlib
+          import pathlib
+          import re
+          import urllib.request
+          import zipfile
+          import xml.etree.ElementTree as ET
+
+          project = pathlib.Path('UniqueItemTransferPlugin.csproj')
+          tree = ET.parse(project)
+          root = tree.getroot()
+          version_property = None
+          for group in root.findall('./PropertyGroup'):
+              for node in group.findall('AsfVersion'):
+                  version_property = node
+                  break
+              if version_property is not None:
+                  break
+          if version_property is None:
+              raise SystemExit('AsfVersion property not found')
+
+          current = version_property.text
+          with urllib.request.urlopen('https://api.github.com/repos/JustArchiNET/ArchiSteamFarm/releases/latest') as response:
+              latest = json.load(response)['tag_name'].lstrip('v')
+
+          if not re.fullmatch(r'\d+\.\d+\.\d+\.\d+', latest):
+              raise SystemExit(f'Unexpected ASF version: {latest}')
+
+          if latest == current:
+              print('updated=false')
+              pathlib.Path('update-output.txt').write_text('already up to date', encoding='utf-8')
+              raise SystemExit(0)
+
+          version_property.text = latest
+          tree.write(project, encoding='utf-8', xml_declaration=False)
+
+          archive_path = pathlib.Path('lib/ASF-generic.zip')
+          archive_path.parent.mkdir(parents=True, exist_ok=True)
+          download_url = f'https://github.com/JustArchiNET/ArchiSteamFarm/releases/download/{latest}/ASF-generic.zip'
+          urllib.request.urlretrieve(download_url, archive_path)
+          checksums_url = f'https://github.com/JustArchiNET/ArchiSteamFarm/releases/download/{latest}/SHA512SUMS'
+          with urllib.request.urlopen(checksums_url) as response:
+              checksums = response.read().decode('utf-8')
+
+          expected = None
+          for line in checksums.splitlines():
+              parts = line.split(maxsplit=1)
+              if len(parts) == 2 and parts[1].strip() == 'ASF-generic.zip':
+                  expected = parts[0].strip().lower()
+                  break
+
+          if expected is None:
+              raise SystemExit('ASF-generic.zip checksum not found')
+
+          actual = hashlib.sha512(archive_path.read_bytes()).hexdigest().lower()
+          if actual != expected:
+              raise SystemExit('Checksum verification failed for ASF-generic.zip')
+
+          with zipfile.ZipFile(archive_path) as archive:
+              for name in ('ArchiSteamFarm.dll', 'SteamKit2.dll', 'System.Composition.AttributedModel.dll'):
+                  archive.extract(name, archive_path.parent)
+
+          archive_path.unlink(missing_ok=True)
+          pathlib.Path('update-output.txt').write_text(f'{current} -> {latest}', encoding='utf-8')
+          print('updated=true')
+          PY
+      - name: Read update result
+        id: result
+        run: |
+          if git diff --quiet; then
+            echo "updated=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "updated=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: peter-evans/create-pull-request@v7
+        if: steps.result.outputs.updated == 'true'
+        with:
+          commit-message: chore: bump ASF reference
+          title: chore: bump ASF reference
+          body: Automated update of bundled ASF reference assemblies to the latest ASF release.
+          branch: chore/bump-asf-reference

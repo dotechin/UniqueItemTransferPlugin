@@ -1,14 +1,44 @@
-using System;
-using System.Threading.Tasks;
+using System.ComponentModel;
+using System.Composition;
+using System.Text.Json.Serialization;
+using ArchiSteamFarm.Core;
+using ArchiSteamFarm.Plugins.Interfaces;
+using ArchiSteamFarm.Steam;
+using UniqueItemTransferPlugin.Services;
 
 namespace UniqueItemTransferPlugin;
 
-public class UniqueItemTransferPlugin {
-	public string Name => "UniqueItemTransferPlugin";
-	public Version Version => new(1, 0, 0, 0);
+[Export(typeof(IPlugin))]
+public sealed class UniqueItemTransferPlugin : IPlugin, IBotCommand2 {
+	[JsonInclude]
+	public string Name => nameof(UniqueItemTransferPlugin);
+
+	[JsonInclude]
+	public Version Version => typeof(UniqueItemTransferPlugin).Assembly.GetName().Version ?? new Version(7, 0, 0, 0);
 
 	public Task OnLoaded() {
-		Console.WriteLine("✅ UniqueItemTransferPlugin loaded successfully!");
+		ASF.ArchiLogger.LogGenericInfo($"{nameof(UniqueItemTransferPlugin)} v{Version} loaded.");
+
 		return Task.CompletedTask;
+	}
+
+	public Task<string?> OnBotCommand(Bot bot, EAccess access, string message, string[] args, ulong steamID = 0) {
+		ArgumentNullException.ThrowIfNull(bot);
+
+		if (!Enum.IsDefined(access)) {
+			throw new InvalidEnumArgumentException(nameof(access), (int) access, typeof(EAccess));
+		}
+
+		ArgumentException.ThrowIfNullOrEmpty(message);
+
+		if (args == null) {
+			throw new ArgumentNullException(nameof(args));
+		}
+
+		if (args.Length == 0) {
+			throw new ArgumentException("Args must not be empty.", nameof(args));
+		}
+
+		return TransferService.Instance.OnBotCommandAsync(bot, access, args, steamID);
 	}
 }
