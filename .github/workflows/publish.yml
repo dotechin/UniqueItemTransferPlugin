@@ -1,0 +1,30 @@
+name: Publish
+
+on:
+  workflow_dispatch:
+  release:
+    types: [published]
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - name: Restore
+        run: dotnet restore UniqueItemTransferPlugin.csproj
+      - name: Build
+        run: dotnet build UniqueItemTransferPlugin.csproj -c Release --no-restore
+      - name: Create plugin bundle
+        run: |
+          mkdir -p package
+          cp bin/Release/net8.0/UniqueItemTransferPlugin.dll package/
+          cp bin/Release/net8.0/UniqueItemTransferPlugin.deps.json package/
+          cp README.md LICENSE.txt package/
+          cd package && zip -r ../UniqueItemTransferPlugin-v7.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UniqueItemTransferPlugin-v7
+          path: UniqueItemTransferPlugin-v7.zip

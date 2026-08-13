@@ -1,9 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk">
-	<PropertyGroup>
-		<OutputType>Library</OutputType>
-		<TargetFramework>net8.0</TargetFramework>
-		<Version>1.0.0.0</Version>
-		<Authors>YourName</Authors>
-		<Description>Transfer unique items between bots</Description>
-	</PropertyGroup>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <OutputType>Library</OutputType>
+    <AssemblyName>UniqueItemTransferPlugin</AssemblyName>
+    <RootNamespace>UniqueItemTransferPlugin</RootNamespace>
+    <Version>7.0.0</Version>
+    <AssemblyVersion>7.0.0.0</AssemblyVersion>
+    <FileVersion>7.0.0.0</FileVersion>
+    <Authors>dotechin</Authors>
+    <Description>ASF plugin for transferring only unique Steam Community items between bots.</Description>
+    <PackageId>UniqueItemTransferPlugin</PackageId>
+    <RepositoryUrl>https://github.com/dotechin/UniqueItemTransferPlugin</RepositoryUrl>
+    <AsfVersion>6.3.8.4</AsfVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="ArchiSteamFarm">
+      <HintPath>lib/ArchiSteamFarm.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SteamKit2">
+      <HintPath>lib/SteamKit2.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="System.Composition.AttributedModel">
+      <HintPath>lib/System.Composition.AttributedModel.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
 </Project>
