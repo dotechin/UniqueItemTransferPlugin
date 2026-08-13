@@ -1,12 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "ZZtDuQ92+5U=",
+  "dgSpecHash": "ejBlUPql+vQ=",
   "success": true,
-  "projectFilePath": "C:\\Users\\Fabrizio\\Documents\\GitHub\\UniqueItemTransferPlugin\\UniqueItemTransferPlugin.csproj",
-  "expectedPackageFiles": [
-    "C:\\Users\\Fabrizio\\.nuget\\packages\\microsoft.netcore.app.ref\\8.0.29\\microsoft.netcore.app.ref.8.0.29.nupkg.sha512",
-    "C:\\Users\\Fabrizio\\.nuget\\packages\\microsoft.windowsdesktop.app.ref\\8.0.29\\microsoft.windowsdesktop.app.ref.8.0.29.nupkg.sha512",
-    "C:\\Users\\Fabrizio\\.nuget\\packages\\microsoft.aspnetcore.app.ref\\8.0.29\\microsoft.aspnetcore.app.ref.8.0.29.nupkg.sha512"
-  ],
+  "projectFilePath": "/home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/UniqueItemTransferPlugin.csproj",
+  "expectedPackageFiles": [],
   "logs": []
 }

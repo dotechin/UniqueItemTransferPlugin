@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\Fabrizio\\Documents\\GitHub\\UniqueItemTransferPlugin\\UniqueItemTransferPlugin.csproj": {}
+    "/home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/UniqueItemTransferPlugin.csproj": {}
   },
   "projects": {
-    "C:\\Users\\Fabrizio\\Documents\\GitHub\\UniqueItemTransferPlugin\\UniqueItemTransferPlugin.csproj": {
+    "/home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/UniqueItemTransferPlugin.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\Fabrizio\\Documents\\GitHub\\UniqueItemTransferPlugin\\UniqueItemTransferPlugin.csproj",
+        "projectUniqueName": "/home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/UniqueItemTransferPlugin.csproj",
         "projectName": "UniqueItemTransferPlugin",
-        "projectPath": "C:\\Users\\Fabrizio\\Documents\\GitHub\\UniqueItemTransferPlugin\\UniqueItemTransferPlugin.csproj",
-        "packagesPath": "C:\\Users\\Fabrizio\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\Fabrizio\\Documents\\GitHub\\UniqueItemTransferPlugin\\obj\\",
+        "projectPath": "/home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/UniqueItemTransferPlugin.csproj",
+        "packagesPath": "/home/runner/.nuget/packages/",
+        "outputPath": "/home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/obj/",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\Fabrizio\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "/home/runner/.nuget/NuGet/NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
@@ -56,26 +56,12 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[8.0.29, 8.0.29]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[8.0.29, 8.0.29]"
-            },
-            {
-              "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[8.0.29, 8.0.29]"
-            }
-          ],
           "frameworkReferences": {
             "Microsoft.NETCore.App": {
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.302/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "/usr/share/dotnet/sdk/10.0.302/PortableRuntimeIdentifierGraph.json"
         }
       }
     }
