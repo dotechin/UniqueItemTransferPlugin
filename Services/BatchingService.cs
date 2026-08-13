@@ -18,9 +18,11 @@ public sealed class BatchingService {
 		List<TransferBatch> batches = [];
 
 		for (int index = 0; index < serializedItems.Count; index += SafeBatchLimit) {
+			int batchSize = Math.Min(SafeBatchLimit, serializedItems.Count - index);
+
 			batches.Add(new TransferBatch {
 				BatchNumber = batches.Count + 1,
-				Items = serializedItems.Skip(index).Take(SafeBatchLimit).ToList()
+				Items = serializedItems.GetRange(index, batchSize)
 			});
 		}
 

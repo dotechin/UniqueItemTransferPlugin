@@ -8,6 +8,8 @@ on:
 jobs:
   package:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -20,8 +22,8 @@ jobs:
       - name: Create plugin bundle
         run: |
           mkdir -p package
-          cp bin/Release/net8.0/UniqueItemTransferPlugin.dll package/
-          cp bin/Release/net8.0/UniqueItemTransferPlugin.deps.json package/
+          cp bin/Release/net10.0/UniqueItemTransferPlugin.dll package/
+          cp bin/Release/net10.0/UniqueItemTransferPlugin.deps.json package/
           cp README.md LICENSE.txt package/
           cd package && zip -r ../UniqueItemTransferPlugin-v7.zip .
       - uses: actions/upload-artifact@v4

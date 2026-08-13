@@ -31,8 +31,12 @@ public sealed class UniqueItemTransferPlugin : IPlugin, IBotCommand2 {
 
 		ArgumentException.ThrowIfNullOrEmpty(message);
 
-		if ((args == null) || (args.Length == 0)) {
+		if (args == null) {
 			throw new ArgumentNullException(nameof(args));
+		}
+
+		if (args.Length == 0) {
+			throw new ArgumentException("Args must not be empty.", nameof(args));
 		}
 
 		return TransferService.Instance.OnBotCommandAsync(bot, access, args, steamID);

@@ -18,6 +18,7 @@ jobs:
         run: |
           python <<'PY'
           import json
+          import hashlib
           import pathlib
           import re
           import urllib.request
@@ -56,6 +57,23 @@ jobs:
           archive_path.parent.mkdir(parents=True, exist_ok=True)
           download_url = f'https://github.com/JustArchiNET/ArchiSteamFarm/releases/download/{latest}/ASF-generic.zip'
           urllib.request.urlretrieve(download_url, archive_path)
+          checksums_url = f'https://github.com/JustArchiNET/ArchiSteamFarm/releases/download/{latest}/SHA512SUMS'
+          with urllib.request.urlopen(checksums_url) as response:
+              checksums = response.read().decode('utf-8')
+
+          expected = None
+          for line in checksums.splitlines():
+              parts = line.split(maxsplit=1)
+              if len(parts) == 2 and parts[1].strip() == 'ASF-generic.zip':
+                  expected = parts[0].strip().lower()
+                  break
+
+          if expected is None:
+              raise SystemExit('ASF-generic.zip checksum not found')
+
+          actual = hashlib.sha512(archive_path.read_bytes()).hexdigest().lower()
+          if actual != expected:
+              raise SystemExit('Checksum verification failed for ASF-generic.zip')
 
           with zipfile.ZipFile(archive_path) as archive:
               for name in ('ArchiSteamFarm.dll', 'SteamKit2.dll', 'System.Composition.AttributedModel.dll'):

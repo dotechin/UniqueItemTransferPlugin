@@ -51,8 +51,8 @@ Shows the latest completed, failed, and dry-run transfer records.
 ## Build
 
 ```bash
-dotnet restore /home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/UniqueItemTransferPlugin.csproj
-dotnet build /home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/UniqueItemTransferPlugin.csproj -c Release
+dotnet restore
+dotnet build -c Release
 ```
 
 ## Notes

@@ -40,8 +40,12 @@ public sealed class TransferService {
 			throw new InvalidEnumArgumentException(nameof(access), (int) access, typeof(EAccess));
 		}
 
-		if ((args == null) || (args.Length == 0)) {
+		if (args == null) {
 			throw new ArgumentNullException(nameof(args));
+		}
+
+		if (args.Length == 0) {
+			throw new ArgumentException("Args must not be empty.", nameof(args));
 		}
 
 		PruneExpiredTransfers();
@@ -131,12 +135,18 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse($"Usage: {ConfirmCommand} <transferId>");
 		}
 
-		if (!pendingTransfers.TryRemove(transferId, out TransferRequest? request)) {
+		if (!pendingTransfers.TryGetValue(transferId, out TransferRequest? request) || (request == null)) {
 			return requestingBot.Commands.FormatBotResponse("Transfer not found, already processed, or expired.");
 		}
 
 		if (request.ExpiresAtUtc < DateTimeOffset.UtcNow) {
+			pendingTransfers.TryRemove(transferId, out _);
+			AppendHistory(CreateHistoryEntry(request, "Expired", 0, [], "Confirmation window expired before approval."));
 			return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} expired and must be recreated.");
+		}
+
+		if (!pendingTransfers.TryRemove(transferId, out request) || (request == null)) {
+			return requestingBot.Commands.FormatBotResponse("Transfer was already processed by another command.");
 		}
 
 		return await ExecuteTransferAsync(requestingBot, request).ConfigureAwait(false);
@@ -293,9 +303,9 @@ public sealed class TransferService {
 				.Append(batch.ItemCount)
 				.Append(" item(s)");
 
-			IEnumerable<string> sampleNames = batch.Items.Take(5).Select(static item => item.Name);
+			List<string> sampleNames = batch.Items.Take(5).Select(static item => item.Name).ToList();
 
-			if (sampleNames.Any()) {
+			if (sampleNames.Count > 0) {
 				response.Append(" | sample=").Append(string.Join(", ", sampleNames));
 			}
 

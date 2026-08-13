@@ -4,31 +4,38 @@ using ArchiSteamFarm.Steam.Data;
 namespace UniqueItemTransferPlugin.Services;
 
 public sealed class InventoryService {
+	private static readonly IReadOnlySet<EAssetType> AllSupportedTypes = new HashSet<EAssetType> {
+		EAssetType.TradingCard,
+		EAssetType.FoilTradingCard,
+		EAssetType.ProfileBackground,
+		EAssetType.Emoticon,
+		EAssetType.Sticker,
+		EAssetType.ProfileModifier,
+		EAssetType.ChatEffect,
+		EAssetType.MiniProfileBackground,
+		EAssetType.AvatarProfileFrame,
+		EAssetType.AnimatedAvatar,
+		EAssetType.KeyboardSkin,
+		EAssetType.StartupVideo
+	};
+	private static readonly IReadOnlySet<EAssetType> CardTypes = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard };
+	private static readonly IReadOnlySet<EAssetType> BackgroundTypes = new HashSet<EAssetType> { EAssetType.ProfileBackground };
+	private static readonly IReadOnlySet<EAssetType> EmoticonTypes = new HashSet<EAssetType> { EAssetType.Emoticon };
+	private static readonly IReadOnlySet<EAssetType> StickerTypes = new HashSet<EAssetType> { EAssetType.Sticker };
+	private static readonly IReadOnlySet<EAssetType> ProfileItemTypes = new HashSet<EAssetType> { EAssetType.ProfileModifier, EAssetType.ChatEffect, EAssetType.MiniProfileBackground, EAssetType.AvatarProfileFrame, EAssetType.AnimatedAvatar, EAssetType.StartupVideo };
+	private static readonly IReadOnlySet<EAssetType> KeyboardTypes = new HashSet<EAssetType> { EAssetType.KeyboardSkin };
 	private static readonly IReadOnlyDictionary<string, IReadOnlySet<EAssetType>> ModeMappings = new Dictionary<string, IReadOnlySet<EAssetType>>(StringComparer.OrdinalIgnoreCase) {
-		["all"] = new HashSet<EAssetType> {
-			EAssetType.TradingCard,
-			EAssetType.FoilTradingCard,
-			EAssetType.ProfileBackground,
-			EAssetType.Emoticon,
-			EAssetType.Sticker,
-			EAssetType.ProfileModifier,
-			EAssetType.ChatEffect,
-			EAssetType.MiniProfileBackground,
-			EAssetType.AvatarProfileFrame,
-			EAssetType.AnimatedAvatar,
-			EAssetType.KeyboardSkin,
-			EAssetType.StartupVideo
-		},
-		["cards"] = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard },
-		["backgrounds"] = new HashSet<EAssetType> { EAssetType.ProfileBackground },
-		["emoticons"] = new HashSet<EAssetType> { EAssetType.Emoticon },
-		["stickers"] = new HashSet<EAssetType> { EAssetType.Sticker },
-		["profile"] = new HashSet<EAssetType> { EAssetType.ProfileModifier, EAssetType.ChatEffect, EAssetType.MiniProfileBackground, EAssetType.AvatarProfileFrame, EAssetType.AnimatedAvatar, EAssetType.StartupVideo },
-		["profileitems"] = new HashSet<EAssetType> { EAssetType.ProfileModifier, EAssetType.ChatEffect, EAssetType.MiniProfileBackground, EAssetType.AvatarProfileFrame, EAssetType.AnimatedAvatar, EAssetType.StartupVideo },
-		["profile-items"] = new HashSet<EAssetType> { EAssetType.ProfileModifier, EAssetType.ChatEffect, EAssetType.MiniProfileBackground, EAssetType.AvatarProfileFrame, EAssetType.AnimatedAvatar, EAssetType.StartupVideo },
-		["keyboard"] = new HashSet<EAssetType> { EAssetType.KeyboardSkin },
-		["keyboardthemes"] = new HashSet<EAssetType> { EAssetType.KeyboardSkin },
-		["keyboard-themes"] = new HashSet<EAssetType> { EAssetType.KeyboardSkin }
+		["all"] = AllSupportedTypes,
+		["cards"] = CardTypes,
+		["backgrounds"] = BackgroundTypes,
+		["emoticons"] = EmoticonTypes,
+		["stickers"] = StickerTypes,
+		["profile"] = ProfileItemTypes,
+		["profileitems"] = ProfileItemTypes,
+		["profile-items"] = ProfileItemTypes,
+		["keyboard"] = KeyboardTypes,
+		["keyboardthemes"] = KeyboardTypes,
+		["keyboard-themes"] = KeyboardTypes
 	};
 
 	public bool TryResolveModes(IEnumerable<string> requestedModes, out HashSet<EAssetType> assetTypes, out List<string> normalizedModes, out List<string> invalidModes) {
