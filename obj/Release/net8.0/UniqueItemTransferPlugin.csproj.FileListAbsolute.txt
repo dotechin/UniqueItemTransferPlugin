@@ -1,0 +1,11 @@
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\bin\Release\net8.0\UniqueItemTransferPlugin.deps.json
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\bin\Release\net8.0\UniqueItemTransferPlugin.dll
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\bin\Release\net8.0\UniqueItemTransferPlugin.pdb
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\obj\Release\net8.0\UniqueItemTransferPlugin.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\obj\Release\net8.0\UniqueItemTransferPlugin.AssemblyInfoInputs.cache
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\obj\Release\net8.0\UniqueItemTransferPlugin.AssemblyInfo.cs
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\obj\Release\net8.0\UniqueItemTransferPlugin.csproj.CoreCompileInputs.cache
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\obj\Release\net8.0\UniqueItemTransferPlugin.dll
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\obj\Release\net8.0\refint\UniqueItemTransferPlugin.dll
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\obj\Release\net8.0\UniqueItemTransferPlugin.pdb
+C:\Users\Fabrizio\Documents\GitHub\UniqueItemTransferPlugin\obj\Release\net8.0\ref\UniqueItemTransferPlugin.dll
