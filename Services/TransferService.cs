@@ -70,7 +70,7 @@ public sealed class TransferService {
 		(bool dryRun, bool autoConfirm, List<string> modeTokens) = ParseArguments(args.Skip(3));
 
 		if (dryRun && autoConfirm) {
-			return requestingBot.Commands.FormatBotResponse("--confirm is ignored when --dryrun is specified. Remove one of the flags.");
+			return requestingBot.Commands.FormatBotResponse("--dryrun and --confirm cannot be used together. Remove one of the flags.");
 		}
 
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out List<string> normalizedModes, out List<string> invalidModes)) {
