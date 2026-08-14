@@ -1,5 +1,6 @@
 using ArchiSteamFarm.Steam;
 using ArchiSteamFarm.Steam.Data;
+using UniqueItemTransferPlugin.Models;
 
 namespace UniqueItemTransferPlugin.Services;
 
