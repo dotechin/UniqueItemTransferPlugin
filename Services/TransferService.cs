@@ -87,7 +87,7 @@ public sealed class TransferService {
 		IReadOnlyList<ArchiSteamFarm.Steam.Data.Asset> uniqueItems = selectionResult.Items;
 
 		if (uniqueItems.Count == 0) {
-			string whitelistSuffix = selectionResult.WhitelistedItemCount > 0 ? $" Whitelisted unique items skipped: {selectionResult.WhitelistedItemCount}." : string.Empty;
+			string whitelistSuffix = selectionResult.WhitelistedUniqueItemCount > 0 ? $" Whitelisted unique items skipped: {selectionResult.WhitelistedUniqueItemCount}." : string.Empty;
 			return requestingBot.Commands.FormatBotResponse($"No unique tradable items found for {sourceBot.BotName} -> {targetBot.BotName} using modes: {string.Join(", ", normalizedModes)}.{whitelistSuffix}");
 		}
 
@@ -97,7 +97,7 @@ public sealed class TransferService {
 			TargetBotName = targetBot.BotName,
 			Modes = normalizedModes,
 			DryRun = dryRun,
-			WhitelistedItemCount = selectionResult.WhitelistedItemCount,
+			WhitelistedUniqueItemCount = selectionResult.WhitelistedUniqueItemCount,
 			CreatedAtUtc = DateTimeOffset.UtcNow,
 			ExpiresAtUtc = DateTimeOffset.UtcNow.Add(ConfirmationTimeout),
 			Batches = [.. batchingService.CreateBatches(uniqueItems)]
@@ -281,8 +281,8 @@ public sealed class TransferService {
 			.Append(" | safeBatchLimit=")
 			.Append(BatchingService.SafeBatchLimit);
 
-		if (request.WhitelistedItemCount > 0) {
-			response.Append(" | whitelistedSkipped=").Append(request.WhitelistedItemCount);
+		if (request.WhitelistedUniqueItemCount > 0) {
+			response.Append(" | whitelistedUniqueItems=").Append(request.WhitelistedUniqueItemCount);
 		}
 
 		response.AppendLine();
@@ -314,7 +314,7 @@ public sealed class TransferService {
 		return response.ToString().TrimEnd();
 	}
 
-	private static string BuildWhitelistSummarySuffix(TransferRequest request) => request.WhitelistedItemCount > 0 ? $" | whitelistedSkipped={request.WhitelistedItemCount}" : string.Empty;
+	private static string BuildWhitelistSummarySuffix(TransferRequest request) => request.WhitelistedUniqueItemCount > 0 ? $" | whitelistedUniqueItems={request.WhitelistedUniqueItemCount}" : string.Empty;
 
 	private void PruneExpiredTransfers() {
 		DateTimeOffset now = DateTimeOffset.UtcNow;

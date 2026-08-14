@@ -4,5 +4,5 @@ namespace UniqueItemTransferPlugin.Models;
 
 public sealed class InventorySelectionResult {
 	public required IReadOnlyList<Asset> Items { get; init; }
-	public required int WhitelistedItemCount { get; init; }
+	public required int WhitelistedUniqueItemCount { get; init; }
 }

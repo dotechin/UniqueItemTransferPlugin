@@ -89,7 +89,7 @@ Each entry matches on:
 - `type`
 - `classID`
 
-When whitelist entries are matched, command output includes the number of unique items skipped.
+When whitelist entries are matched, command output includes the number of unique transfer candidates skipped.
 
 ## License
 
