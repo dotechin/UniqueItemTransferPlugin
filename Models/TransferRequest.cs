@@ -6,6 +6,7 @@ public sealed class TransferRequest {
 	public required string TargetBotName { get; init; }
 	public required List<string> Modes { get; init; }
 	public required bool DryRun { get; init; }
+	public required int WhitelistedItemCount { get; init; }
 	public required DateTimeOffset CreatedAtUtc { get; init; }
 	public required DateTimeOffset ExpiresAtUtc { get; init; }
 	public required List<TransferBatch> Batches { get; init; }

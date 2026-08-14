@@ -24,12 +24,15 @@ public sealed class TransferService {
 	private readonly InventoryService inventoryService = new();
 	private readonly ConcurrentDictionary<Guid, TransferRequest> pendingTransfers = new();
 	private readonly object historyLock = new();
+	private readonly object whitelistLock = new();
 	private readonly string historyPath;
+	private readonly string whitelistPath;
 
 	private TransferService() {
 		string pluginDirectory = Path.GetDirectoryName(typeof(UniqueItemTransferPlugin).Assembly.Location) ?? AppContext.BaseDirectory;
 		Directory.CreateDirectory(pluginDirectory);
 		historyPath = Path.Combine(pluginDirectory, "transfer-history.json");
+		whitelistPath = Path.Combine(pluginDirectory, "item-whitelist.json");
 	}
 
 	public async Task<string?> OnBotCommandAsync(Bot bot, EAccess access, string[] args, ulong steamID) {
@@ -71,17 +74,21 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, backgrounds, emoticons.");
 		}
 
-		IReadOnlyList<ArchiSteamFarm.Steam.Data.Asset> uniqueItems;
+		HashSet<AssetMatchKey> whitelistedItems = [.. LoadWhitelist().Entries.Select(static entry => entry.ToKey())];
+		InventorySelectionResult selectionResult;
 
 		try {
-			uniqueItems = await inventoryService.GetUniqueItemsToTransferAsync(sourceBot, targetBot, allowedTypes).ConfigureAwait(false);
+			selectionResult = await inventoryService.GetUniqueItemsToTransferAsync(sourceBot, targetBot, allowedTypes, whitelistedItems).ConfigureAwait(false);
 		} catch (Exception exception) {
 			sourceBot.ArchiLogger.LogGenericWarningException(exception);
 			return requestingBot.Commands.FormatBotResponse($"Failed to inspect inventories: {exception.Message}");
 		}
 
+		IReadOnlyList<ArchiSteamFarm.Steam.Data.Asset> uniqueItems = selectionResult.Items;
+
 		if (uniqueItems.Count == 0) {
-			return requestingBot.Commands.FormatBotResponse($"No unique tradable items found for {sourceBot.BotName} -> {targetBot.BotName} using modes: {string.Join(", ", normalizedModes)}.");
+			string whitelistSuffix = selectionResult.WhitelistedItemCount > 0 ? $" Whitelisted unique items skipped: {selectionResult.WhitelistedItemCount}." : string.Empty;
+			return requestingBot.Commands.FormatBotResponse($"No unique tradable items found for {sourceBot.BotName} -> {targetBot.BotName} using modes: {string.Join(", ", normalizedModes)}.{whitelistSuffix}");
 		}
 
 		TransferRequest request = new() {
@@ -90,6 +97,7 @@ public sealed class TransferService {
 			TargetBotName = targetBot.BotName,
 			Modes = normalizedModes,
 			DryRun = dryRun,
+			WhitelistedItemCount = selectionResult.WhitelistedItemCount,
 			CreatedAtUtc = DateTimeOffset.UtcNow,
 			ExpiresAtUtc = DateTimeOffset.UtcNow.Add(ConfirmationTimeout),
 			Batches = [.. batchingService.CreateBatches(uniqueItems)]
@@ -202,7 +210,7 @@ public sealed class TransferService {
 
 				if (!success) {
 					AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? "PartialFailure" : "Failed", completedBatchCount, tradeOfferIds, $"Steam rejected batch {batch.BatchNumber}."));
-					return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} failed while sending batch {batch.BatchNumber}/{request.BatchCount}. Sent batches: {completedBatchCount}. Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "none")}");
+					return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} failed while sending batch {batch.BatchNumber}/{request.BatchCount}. Sent batches: {completedBatchCount}. Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "none")}{BuildWhitelistSummarySuffix(request)}");
 				}
 
 				completedBatchCount++;
@@ -213,13 +221,13 @@ public sealed class TransferService {
 			} catch (Exception exception) {
 				sourceBot.ArchiLogger.LogGenericWarningException(exception);
 				AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? "PartialFailure" : "Failed", completedBatchCount, tradeOfferIds, exception.Message));
-				return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} aborted on batch {batch.BatchNumber}/{request.BatchCount}: {exception.Message}");
+				return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} aborted on batch {batch.BatchNumber}/{request.BatchCount}: {exception.Message}{BuildWhitelistSummarySuffix(request)}");
 			}
 		}
 
 		AppendHistory(CreateHistoryEntry(request, "Completed", completedBatchCount, tradeOfferIds, null));
 
-		return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} completed successfully: {request.TotalItemCount} items in {completedBatchCount} batch(es). Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "created without retrievable IDs")}");
+		return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} completed successfully: {request.TotalItemCount} items in {completedBatchCount} batch(es). Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "created without retrievable IDs")}{BuildWhitelistSummarySuffix(request)}");
 	}
 
 	private static (bool DryRun, bool AutoConfirm, List<string> Modes) ParseArguments(IEnumerable<string> rawArguments) {
@@ -271,8 +279,13 @@ public sealed class TransferService {
 			.Append(" | batches=")
 			.Append(request.BatchCount)
 			.Append(" | safeBatchLimit=")
-			.Append(BatchingService.SafeBatchLimit)
-			.AppendLine();
+			.Append(BatchingService.SafeBatchLimit);
+
+		if (request.WhitelistedItemCount > 0) {
+			response.Append(" | whitelistedSkipped=").Append(request.WhitelistedItemCount);
+		}
+
+		response.AppendLine();
 
 		foreach (TransferBatch batch in request.Batches.Take(3)) {
 			response.Append("  Batch ")
@@ -300,6 +313,8 @@ public sealed class TransferService {
 
 		return response.ToString().TrimEnd();
 	}
+
+	private static string BuildWhitelistSummarySuffix(TransferRequest request) => request.WhitelistedItemCount > 0 ? $" | whitelistedSkipped={request.WhitelistedItemCount}" : string.Empty;
 
 	private void PruneExpiredTransfers() {
 		DateTimeOffset now = DateTimeOffset.UtcNow;
@@ -344,6 +359,27 @@ public sealed class TransferService {
 	private TransferHistory LoadHistory() {
 		lock (historyLock) {
 			return LoadHistoryUnsafe();
+		}
+	}
+
+	private WhitelistConfiguration LoadWhitelist() {
+		lock (whitelistLock) {
+			return LoadWhitelistUnsafe();
+		}
+	}
+
+	private WhitelistConfiguration LoadWhitelistUnsafe() {
+		if (!File.Exists(whitelistPath)) {
+			WhitelistConfiguration emptyWhitelist = new();
+			File.WriteAllText(whitelistPath, JsonSerializer.Serialize(emptyWhitelist, JsonOptions));
+			return emptyWhitelist;
+		}
+
+		try {
+			return JsonSerializer.Deserialize<WhitelistConfiguration>(File.ReadAllText(whitelistPath), JsonOptions) ?? new WhitelistConfiguration();
+		} catch (Exception exception) {
+			ASF.ArchiLogger.LogGenericWarningException(exception);
+			return new WhitelistConfiguration();
 		}
 	}
 
