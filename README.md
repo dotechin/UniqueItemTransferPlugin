@@ -9,7 +9,7 @@ UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** 
   - `cards`
   - `backgrounds`
   - `emoticons`
-- Splits large transfers into safe batches of **390** items per trade
+- Splits large transfers into safe batches of **256** items per trade
 - Supports `--dryrun` previews
 - Requires explicit confirmation unless `--confirm` is provided
 - Stores transfer history in `transfer-history.json`
