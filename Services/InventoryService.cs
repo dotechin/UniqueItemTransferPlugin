@@ -4,20 +4,11 @@ using ArchiSteamFarm.Steam.Data;
 namespace UniqueItemTransferPlugin.Services;
 
 public sealed class InventoryService {
-	private static readonly IReadOnlySet<EAssetType> AllSupportedTypes = new HashSet<EAssetType> {
-		EAssetType.TradingCard,
-		EAssetType.FoilTradingCard,
-		EAssetType.ProfileBackground,
-		EAssetType.Emoticon
-	};
-	private static readonly IReadOnlySet<EAssetType> CardTypes = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard };
-	private static readonly IReadOnlySet<EAssetType> BackgroundTypes = new HashSet<EAssetType> { EAssetType.ProfileBackground };
-	private static readonly IReadOnlySet<EAssetType> EmoticonTypes = new HashSet<EAssetType> { EAssetType.Emoticon };
 	private static readonly IReadOnlyDictionary<string, IReadOnlySet<EAssetType>> ModeMappings = new Dictionary<string, IReadOnlySet<EAssetType>>(StringComparer.OrdinalIgnoreCase) {
-		["all"] = AllSupportedTypes,
-		["cards"] = CardTypes,
-		["backgrounds"] = BackgroundTypes,
-		["emoticons"] = EmoticonTypes
+		["all"] = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard, EAssetType.ProfileBackground, EAssetType.Emoticon },
+		["cards"] = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard },
+		["backgrounds"] = new HashSet<EAssetType> { EAssetType.ProfileBackground },
+		["emoticons"] = new HashSet<EAssetType> { EAssetType.Emoticon }
 	};
 
 	public bool TryResolveModes(IEnumerable<string> requestedModes, out HashSet<EAssetType> assetTypes, out List<string> normalizedModes, out List<string> invalidModes) {
@@ -53,7 +44,7 @@ public sealed class InventoryService {
 		HashSet<AssetKey> targetOwnedKeys = [];
 
 		await foreach (Asset asset in targetBot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID)) {
-			if (!IsEligibleForDuplicateDetection(asset, allowedTypes)) {
+			if (!IsEligibleAsset(asset, allowedTypes, requireTradable: false)) {
 				continue;
 			}
 
@@ -64,7 +55,7 @@ public sealed class InventoryService {
 		List<Asset> uniqueItems = [];
 
 		await foreach (Asset asset in sourceBot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID, tradableOnly: true)) {
-			if (!IsEligibleForTransfer(asset, allowedTypes)) {
+			if (!IsEligibleAsset(asset, allowedTypes, requireTradable: true)) {
 				continue;
 			}
 
@@ -84,24 +75,13 @@ public sealed class InventoryService {
 			.ToList();
 	}
 
-	private static bool IsEligibleForDuplicateDetection(Asset asset, IReadOnlySet<EAssetType> allowedTypes) {
+	private static bool IsEligibleAsset(Asset asset, IReadOnlySet<EAssetType> allowedTypes, bool requireTradable) {
 		ArgumentNullException.ThrowIfNull(asset);
 		ArgumentNullException.ThrowIfNull(allowedTypes);
 
 		return (asset.AppID == Asset.SteamAppID) &&
 			(asset.ContextID == Asset.SteamCommunityContextID) &&
-			!asset.IsSteamPointsShopItem &&
-			(asset.RealAppID != 0) &&
-			allowedTypes.Contains(asset.Type);
-	}
-
-	private static bool IsEligibleForTransfer(Asset asset, IReadOnlySet<EAssetType> allowedTypes) {
-		ArgumentNullException.ThrowIfNull(asset);
-		ArgumentNullException.ThrowIfNull(allowedTypes);
-
-		return (asset.AppID == Asset.SteamAppID) &&
-			(asset.ContextID == Asset.SteamCommunityContextID) &&
-			asset.Tradable &&
+			(!requireTradable || asset.Tradable) &&
 			!asset.IsSteamPointsShopItem &&
 			(asset.RealAppID != 0) &&
 			allowedTypes.Contains(asset.Type);

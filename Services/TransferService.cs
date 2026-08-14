@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.ComponentModel;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -36,18 +35,6 @@ public sealed class TransferService {
 	public async Task<string?> OnBotCommandAsync(Bot bot, EAccess access, string[] args, ulong steamID) {
 		ArgumentNullException.ThrowIfNull(bot);
 
-		if (!Enum.IsDefined(access)) {
-			throw new InvalidEnumArgumentException(nameof(access), (int) access, typeof(EAccess));
-		}
-
-		if (args == null) {
-			throw new ArgumentNullException(nameof(args));
-		}
-
-		if (args.Length == 0) {
-			throw new ArgumentException("Args must not be empty.", nameof(args));
-		}
-
 		PruneExpiredTransfers();
 
 		return args[0].ToUpperInvariant() switch {
@@ -64,8 +51,7 @@ public sealed class TransferService {
 		}
 
 		if (args.Count < 3) {
-			return requestingBot.Commands.FormatBotResponse($"Usage: {UniqueCommand} <bot1> <bot2> [modes] [--dryrun] [--confirm]");
-		}
+			return requestingBot.Commands.FormatBotResponse($"Usage: {UniqueCommand} <bot1> <bot2> [modes] [--dryrun] [--confirm]");		}
 
 		if (!TryGetBot(args[1], out Bot? sourceBot) || (sourceBot == null) || !TryGetBot(args[2], out Bot? targetBot) || (targetBot == null)) {
 			return requestingBot.Commands.FormatBotResponse("One or both bot names were not found.");
@@ -82,7 +68,7 @@ public sealed class TransferService {
 		(bool dryRun, bool autoConfirm, List<string> modeTokens) = ParseArguments(args.Skip(3));
 
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out List<string> normalizedModes, out List<string> invalidModes)) {
-			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: cards, backgrounds, emoticons, stickers, profile-items, keyboard-themes.");
+			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, backgrounds, emoticons.");
 		}
 
 		IReadOnlyList<ArchiSteamFarm.Steam.Data.Asset> uniqueItems;
@@ -102,11 +88,8 @@ public sealed class TransferService {
 			TransferId = Guid.NewGuid(),
 			SourceBotName = sourceBot.BotName,
 			TargetBotName = targetBot.BotName,
-			SourceSteamID = sourceBot.SteamID,
-			TargetSteamID = targetBot.SteamID,
 			Modes = normalizedModes,
 			DryRun = dryRun,
-			RequiresConfirmation = !dryRun && !autoConfirm,
 			CreatedAtUtc = DateTimeOffset.UtcNow,
 			ExpiresAtUtc = DateTimeOffset.UtcNow.Add(ConfirmationTimeout),
 			Batches = [.. batchingService.CreateBatches(uniqueItems)]
@@ -135,18 +118,13 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse($"Usage: {ConfirmCommand} <transferId>");
 		}
 
-		if (!pendingTransfers.TryGetValue(transferId, out TransferRequest? request) || (request == null)) {
+		if (!pendingTransfers.TryRemove(transferId, out TransferRequest? request) || (request == null)) {
 			return requestingBot.Commands.FormatBotResponse("Transfer not found, already processed, or expired.");
 		}
 
 		if (request.ExpiresAtUtc < DateTimeOffset.UtcNow) {
-			pendingTransfers.TryRemove(transferId, out _);
 			AppendHistory(CreateHistoryEntry(request, "Expired", 0, [], "Confirmation window expired before approval."));
 			return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} expired and must be recreated.");
-		}
-
-		if (!pendingTransfers.TryRemove(transferId, out request) || (request == null)) {
-			return requestingBot.Commands.FormatBotResponse("Transfer was already processed by another command.");
 		}
 
 		return await ExecuteTransferAsync(requestingBot, request).ConfigureAwait(false);
