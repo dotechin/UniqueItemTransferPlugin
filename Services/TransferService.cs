@@ -24,7 +24,6 @@ public sealed class TransferService {
 	private readonly InventoryService inventoryService = new();
 	private readonly ConcurrentDictionary<Guid, TransferRequest> pendingTransfers = new();
 	private readonly object historyLock = new();
-	private readonly object whitelistLock = new();
 	private readonly string historyPath;
 	private readonly string whitelistPath;
 
@@ -363,16 +362,8 @@ public sealed class TransferService {
 	}
 
 	private WhitelistConfiguration LoadWhitelist() {
-		lock (whitelistLock) {
-			return LoadWhitelistUnsafe();
-		}
-	}
-
-	private WhitelistConfiguration LoadWhitelistUnsafe() {
 		if (!File.Exists(whitelistPath)) {
-			WhitelistConfiguration emptyWhitelist = new();
-			File.WriteAllText(whitelistPath, JsonSerializer.Serialize(emptyWhitelist, JsonOptions));
-			return emptyWhitelist;
+			return new WhitelistConfiguration();
 		}
 
 		try {
