@@ -9,9 +9,6 @@ UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** 
   - `cards`
   - `backgrounds`
   - `emoticons`
-  - `stickers`
-  - `profile-items`
-  - `keyboard-themes`
 - Splits large transfers into safe batches of **390** items per trade
 - Supports `--dryrun` previews
 - Requires explicit confirmation unless `--confirm` is provided
@@ -29,7 +26,7 @@ Examples:
 ```text
 UNIQUEIQ MAIN DEPOSIT
 UNIQUEIQ MAIN DEPOSIT cards,backgrounds --dryrun
-UNIQUEIQ MAIN DEPOSIT emoticons stickers --confirm
+UNIQUEIQ MAIN DEPOSIT emoticons --confirm
 ```
 
 Behavior:

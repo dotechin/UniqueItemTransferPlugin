@@ -8,34 +8,16 @@ public sealed class InventoryService {
 		EAssetType.TradingCard,
 		EAssetType.FoilTradingCard,
 		EAssetType.ProfileBackground,
-		EAssetType.Emoticon,
-		EAssetType.Sticker,
-		EAssetType.ProfileModifier,
-		EAssetType.ChatEffect,
-		EAssetType.MiniProfileBackground,
-		EAssetType.AvatarProfileFrame,
-		EAssetType.AnimatedAvatar,
-		EAssetType.KeyboardSkin,
-		EAssetType.StartupVideo
+		EAssetType.Emoticon
 	};
 	private static readonly IReadOnlySet<EAssetType> CardTypes = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard };
 	private static readonly IReadOnlySet<EAssetType> BackgroundTypes = new HashSet<EAssetType> { EAssetType.ProfileBackground };
 	private static readonly IReadOnlySet<EAssetType> EmoticonTypes = new HashSet<EAssetType> { EAssetType.Emoticon };
-	private static readonly IReadOnlySet<EAssetType> StickerTypes = new HashSet<EAssetType> { EAssetType.Sticker };
-	private static readonly IReadOnlySet<EAssetType> ProfileItemTypes = new HashSet<EAssetType> { EAssetType.ProfileModifier, EAssetType.ChatEffect, EAssetType.MiniProfileBackground, EAssetType.AvatarProfileFrame, EAssetType.AnimatedAvatar, EAssetType.StartupVideo };
-	private static readonly IReadOnlySet<EAssetType> KeyboardTypes = new HashSet<EAssetType> { EAssetType.KeyboardSkin };
 	private static readonly IReadOnlyDictionary<string, IReadOnlySet<EAssetType>> ModeMappings = new Dictionary<string, IReadOnlySet<EAssetType>>(StringComparer.OrdinalIgnoreCase) {
 		["all"] = AllSupportedTypes,
 		["cards"] = CardTypes,
 		["backgrounds"] = BackgroundTypes,
-		["emoticons"] = EmoticonTypes,
-		["stickers"] = StickerTypes,
-		["profile"] = ProfileItemTypes,
-		["profileitems"] = ProfileItemTypes,
-		["profile-items"] = ProfileItemTypes,
-		["keyboard"] = KeyboardTypes,
-		["keyboardthemes"] = KeyboardTypes,
-		["keyboard-themes"] = KeyboardTypes
+		["emoticons"] = EmoticonTypes
 	};
 
 	public bool TryResolveModes(IEnumerable<string> requestedModes, out HashSet<EAssetType> assetTypes, out List<string> normalizedModes, out List<string> invalidModes) {
