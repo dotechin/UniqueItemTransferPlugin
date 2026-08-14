@@ -54,7 +54,7 @@ public sealed class InventoryService {
 		}
 
 		HashSet<AssetMatchKey> selectedKeys = [];
-		HashSet<AssetMatchKey> whitelistedKeysSeen = [];
+		int whitelistedItemCount = 0;
 		List<Asset> uniqueItems = [];
 
 		await foreach (Asset asset in sourceBot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID, tradableOnly: true)) {
@@ -65,7 +65,7 @@ public sealed class InventoryService {
 			AssetMatchKey key = AssetMatchKey.FromAsset(asset);
 
 			if (whitelistedItems.Contains(key)) {
-				whitelistedKeysSeen.Add(key);
+				whitelistedItemCount++;
 				continue;
 			}
 
@@ -82,7 +82,7 @@ public sealed class InventoryService {
 				.ThenBy(static item => item.Type)
 				.ThenBy(static item => item.Description?.Name ?? item.Description?.MarketName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
 				.ToList(),
-			WhitelistedItemCount = whitelistedKeysSeen.Count
+			WhitelistedItemCount = whitelistedItemCount
 		};
 	}
 
