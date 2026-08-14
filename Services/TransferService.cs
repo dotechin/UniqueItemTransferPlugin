@@ -69,6 +69,10 @@ public sealed class TransferService {
 
 		(bool dryRun, bool autoConfirm, List<string> modeTokens) = ParseArguments(args.Skip(3));
 
+		if (dryRun && autoConfirm) {
+			return requestingBot.Commands.FormatBotResponse("--confirm is ignored when --dryrun is specified. Remove one of the flags.");
+		}
+
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out List<string> normalizedModes, out List<string> invalidModes)) {
 			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, backgrounds, emoticons.");
 		}
@@ -103,7 +107,7 @@ public sealed class TransferService {
 		};
 
 		if (dryRun) {
-			AppendHistory(CreateHistoryEntry(request, "DryRun", request.BatchCount, [], null));
+			AppendHistory(CreateHistoryEntry(request, TransferStatus.DryRun, request.BatchCount, [], null));
 			return requestingBot.Commands.FormatBotResponse(BuildPreviewMessage(request, includeConfirmationHint: false));
 		}
 
@@ -130,7 +134,7 @@ public sealed class TransferService {
 		}
 
 		if (request.ExpiresAtUtc < DateTimeOffset.UtcNow) {
-			AppendHistory(CreateHistoryEntry(request, "Expired", 0, [], "Confirmation window expired before approval."));
+			AppendHistory(CreateHistoryEntry(request, TransferStatus.Expired, 0, [], "Confirmation window expired before approval."));
 			return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} expired and must be recreated.");
 		}
 
@@ -181,12 +185,12 @@ public sealed class TransferService {
 
 	private async Task<string> ExecuteTransferAsync(Bot requestingBot, TransferRequest request) {
 		if (!TryGetBot(request.SourceBotName, out Bot? sourceBot) || (sourceBot == null) || !TryGetBot(request.TargetBotName, out Bot? targetBot) || (targetBot == null)) {
-			AppendHistory(CreateHistoryEntry(request, "Failed", 0, [], "Source or target bot is no longer available."));
+			AppendHistory(CreateHistoryEntry(request, TransferStatus.Failed, 0, [], "Source or target bot is no longer available."));
 			return requestingBot.Commands.FormatBotResponse("Unable to execute transfer because one of the bots is unavailable.");
 		}
 
 		if (!sourceBot.IsConnectedAndLoggedOn || !targetBot.IsConnectedAndLoggedOn) {
-			AppendHistory(CreateHistoryEntry(request, "Failed", 0, [], "One or both bots are offline."));
+			AppendHistory(CreateHistoryEntry(request, TransferStatus.Failed, 0, [], "One or both bots are offline."));
 			return requestingBot.Commands.FormatBotResponse("Unable to execute transfer because one or both bots are offline.");
 		}
 
@@ -196,7 +200,7 @@ public sealed class TransferService {
 			tradeToken = await targetBot.ArchiHandler.GetTradeToken().ConfigureAwait(false);
 		} catch (Exception exception) {
 			targetBot.ArchiLogger.LogGenericWarningException(exception);
-			AppendHistory(CreateHistoryEntry(request, "Failed", 0, [], $"Failed to fetch trade token: {exception.Message}"));
+			AppendHistory(CreateHistoryEntry(request, TransferStatus.Failed, 0, [], $"Failed to fetch trade token: {exception.Message}"));
 			return requestingBot.Commands.FormatBotResponse($"Failed to fetch {targetBot.BotName}'s trade token: {exception.Message}");
 		}
 
@@ -208,7 +212,7 @@ public sealed class TransferService {
 				(bool success, HashSet<ulong>? offerIds, _) = await sourceBot.ArchiWebHandler.SendTradeOffer(targetBot.SteamID, itemsToGive: batch.ToAssets(), token: string.IsNullOrEmpty(tradeToken) ? null : tradeToken, customMessage: $"{nameof(UniqueItemTransferPlugin)} {request.TransferId} batch {batch.BatchNumber}/{request.BatchCount}", forcedSingleOffer: true, itemsPerTrade: BatchingService.SafeBatchLimit).ConfigureAwait(false);
 
 				if (!success) {
-					AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? "PartialFailure" : "Failed", completedBatchCount, tradeOfferIds, $"Steam rejected batch {batch.BatchNumber}."));
+					AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? TransferStatus.PartialFailure : TransferStatus.Failed, completedBatchCount, tradeOfferIds, $"Steam rejected batch {batch.BatchNumber}."));
 					return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} failed while sending batch {batch.BatchNumber}/{request.BatchCount}. Sent batches: {completedBatchCount}. Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "none")}{BuildWhitelistSummarySuffix(request)}");
 				}
 
@@ -219,12 +223,12 @@ public sealed class TransferService {
 				}
 			} catch (Exception exception) {
 				sourceBot.ArchiLogger.LogGenericWarningException(exception);
-				AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? "PartialFailure" : "Failed", completedBatchCount, tradeOfferIds, exception.Message));
+				AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? TransferStatus.PartialFailure : TransferStatus.Failed, completedBatchCount, tradeOfferIds, exception.Message));
 				return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} aborted on batch {batch.BatchNumber}/{request.BatchCount}: {exception.Message}{BuildWhitelistSummarySuffix(request)}");
 			}
 		}
 
-		AppendHistory(CreateHistoryEntry(request, "Completed", completedBatchCount, tradeOfferIds, null));
+		AppendHistory(CreateHistoryEntry(request, TransferStatus.Completed, completedBatchCount, tradeOfferIds, null));
 
 		return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} completed successfully: {request.TotalItemCount} items in {completedBatchCount} batch(es). Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "created without retrievable IDs")}{BuildWhitelistSummarySuffix(request)}");
 	}
@@ -327,7 +331,7 @@ public sealed class TransferService {
 		}
 	}
 
-	private TransferHistoryEntry CreateHistoryEntry(TransferRequest request, string status, int completedBatchCount, List<ulong> tradeOfferIds, string? errorMessage) => new() {
+	private TransferHistoryEntry CreateHistoryEntry(TransferRequest request, TransferStatus status, int completedBatchCount, List<ulong> tradeOfferIds, string? errorMessage) => new() {
 		TransferId = request.TransferId,
 		SourceBotName = request.SourceBotName,
 		TargetBotName = request.TargetBotName,

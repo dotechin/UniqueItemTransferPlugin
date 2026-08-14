@@ -61,10 +61,11 @@ dotnet build -c Release
 - Whitelist exclusions use the same app, type, and class ID matching as duplicate detection
 - Trade offers are sent from the source bot to the destination bot using ASF inventory APIs
 - ASF 6.3.8.4 currently runs on .NET 10, so the plugin targets `net10.0`
+- Transfer history is saved to `transfer-history.json` in the plugin directory (alongside the plugin DLL), capped at 100 entries
 
 ## Whitelist configuration
 
-The plugin stores whitelist entries in `item-whitelist.json` next to the plugin DLL and `transfer-history.json`.
+The plugin stores whitelist entries in `item-whitelist.json` next to the plugin DLL.
 
 Items listed there are skipped before transfer batches are built, for both dry runs and real trades.
 
