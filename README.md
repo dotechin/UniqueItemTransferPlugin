@@ -59,7 +59,7 @@ Whitelist have been implemented to add the possibility of keeping items off the 
 
 New Bot Commands for Whitelist Management: add ASF commands that operate on the whitelist directly, so you never need to touch the JSON file:
 
-    UNIIQWLADD <botname> [modes] — Scans a bot's current inventory and adds all matching items to the whitelist.
+    UNIIQWLADD <botname> [modes] — Scans a bot's current inventory and adds all matching items.
     UNIIQWLREMOVE <realappid> <classid> — Removes a specific entry from the whitelist.
     UNIIQWLLIST [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID.
     UNIIQWLCLEAR — Clears the entire whitelist (with confirmation step).
