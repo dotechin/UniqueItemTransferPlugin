@@ -12,6 +12,11 @@ public sealed class TransferService {
 	private const string UniqueCommand = "UNIQUEIQ";
 	private const string ConfirmCommand = "UNIIQCONFIRM";
 	private const string HistoryCommand = "UNIIQHISTORY";
+	private const string WlAddCommand = "UNIIQWLADD";
+	private const string WlListCommand = "UNIIQWLLIST";
+	private const string WlRemoveCommand = "UNIIQWLREMOVE";
+	private const string WlClearCommand = "UNIIQWLCLEAR";
+	private const int WlListPageSize = 20;
 	private static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(5);
 	private static readonly JsonSerializerOptions JsonOptions = new() {
 		WriteIndented = true,
@@ -25,13 +30,13 @@ public sealed class TransferService {
 	private readonly ConcurrentDictionary<Guid, TransferRequest> pendingTransfers = new();
 	private readonly object historyLock = new();
 	private readonly string historyPath;
-	private readonly string whitelistPath;
+	private readonly WhitelistService whitelistService;
 
 	private TransferService() {
 		string pluginDirectory = Path.GetDirectoryName(typeof(UniqueItemTransferPlugin).Assembly.Location) ?? AppContext.BaseDirectory;
 		Directory.CreateDirectory(pluginDirectory);
 		historyPath = Path.Combine(pluginDirectory, "transfer-history.json");
-		whitelistPath = Path.Combine(pluginDirectory, "item-whitelist.json");
+		whitelistService = new WhitelistService(Path.Combine(pluginDirectory, "item-whitelist.json"));
 	}
 
 	public async Task<string?> OnBotCommandAsync(Bot bot, EAccess access, string[] args, ulong steamID) {
@@ -43,6 +48,10 @@ public sealed class TransferService {
 			UniqueCommand => await HandleUniqueTransferAsync(bot, access, args).ConfigureAwait(false),
 			ConfirmCommand => await HandleConfirmationAsync(bot, access, args).ConfigureAwait(false),
 			HistoryCommand => HandleHistory(bot, access),
+			WlAddCommand => await HandleWlAddAsync(bot, access, args).ConfigureAwait(false),
+			WlListCommand => HandleWlList(bot, access, args),
+			WlRemoveCommand => HandleWlRemove(bot, access, args),
+			WlClearCommand => HandleWlClear(bot, access, args),
 			_ => null
 		};
 	}
@@ -78,7 +87,7 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, backgrounds, emoticons.");
 		}
 
-		HashSet<AssetMatchKey> whitelistedItems = [.. LoadWhitelist().Entries.Select(static entry => entry.ToKey())];
+		HashSet<AssetMatchKey> whitelistedItems = [.. whitelistService.Load().Entries.Select(static entry => entry.ToKey())];
 		InventorySelectionResult selectionResult;
 
 		try {
@@ -373,17 +382,134 @@ public sealed class TransferService {
 		}
 	}
 
-	private WhitelistConfiguration LoadWhitelist() {
-		if (!File.Exists(whitelistPath)) {
-			return new WhitelistConfiguration();
+	private async Task<string?> HandleWlAddAsync(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
+		if (access < EAccess.Master) {
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQWLADD requires Master access.") : null;
+		}
+
+		if (args.Count < 2) {
+			return requestingBot.Commands.FormatBotResponse($"Usage: {WlAddCommand} <botname> [modes]");
+		}
+
+		if (!TryGetBot(args[1], out Bot? targetBot) || (targetBot == null)) {
+			return requestingBot.Commands.FormatBotResponse($"Bot '{args[1]}' was not found.");
+		}
+
+		if (!targetBot.IsConnectedAndLoggedOn) {
+			return requestingBot.Commands.FormatBotResponse($"Bot '{targetBot.BotName}' must be connected and logged on.");
+		}
+
+		List<string> modeTokens = args.Skip(2).ToList();
+
+		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out _, out List<string> invalidModes)) {
+			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, backgrounds, emoticons.");
 		}
 
 		try {
-			return JsonSerializer.Deserialize<WhitelistConfiguration>(File.ReadAllText(whitelistPath), JsonOptions) ?? new WhitelistConfiguration();
+			(int added, int skipped) = await whitelistService.AddFromInventoryAsync(targetBot, allowedTypes).ConfigureAwait(false);
+
+			return requestingBot.Commands.FormatBotResponse($"Whitelist updated from {targetBot.BotName}'s inventory: {added} item(s) added, {skipped} already present.");
 		} catch (Exception exception) {
-			ASF.ArchiLogger.LogGenericWarningException(exception);
-			return new WhitelistConfiguration();
+			targetBot.ArchiLogger.LogGenericWarningException(exception);
+
+			return requestingBot.Commands.FormatBotResponse($"Failed to scan {targetBot.BotName}'s inventory: {exception.Message}");
 		}
+	}
+
+	private string? HandleWlList(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
+		if (access < EAccess.Master) {
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQWLLIST requires Master access.") : null;
+		}
+
+		int page = 1;
+
+		if ((args.Count >= 2) && (!int.TryParse(args[1], out page) || (page < 1))) {
+			return requestingBot.Commands.FormatBotResponse("Page must be a positive integer.");
+		}
+
+		List<WhitelistEntry> entries = whitelistService.Load().Entries;
+
+		if (entries.Count == 0) {
+			return requestingBot.Commands.FormatBotResponse("The whitelist is empty.");
+		}
+
+		int totalPages = (int) Math.Ceiling(entries.Count / (double) WlListPageSize);
+		page = Math.Min(page, totalPages);
+
+		IEnumerable<(int Index, WhitelistEntry Entry)> pageEntries = entries
+			.Select(static (entry, i) => (Index: i + 1, Entry: entry))
+			.Skip((page - 1) * WlListPageSize)
+			.Take(WlListPageSize);
+
+		StringBuilder response = new();
+		response.AppendLine($"Whitelist ({entries.Count} total, page {page}/{totalPages}):");
+
+		foreach ((int index, WhitelistEntry entry) in pageEntries) {
+			response.Append("  [")
+				.Append(index)
+				.Append("] ")
+				.Append(entry.Name ?? "(no name)")
+				.Append(" | appid=")
+				.Append(entry.RealAppID)
+				.Append(" | type=")
+				.Append(entry.Type)
+				.Append(" | classid=")
+				.AppendLine(entry.ClassID.ToString());
+		}
+
+		if (page < totalPages) {
+			response.Append($"Use '{WlListCommand} {page + 1}' to see the next page.");
+		}
+
+		return requestingBot.Commands.FormatBotResponse(response.ToString().TrimEnd());
+	}
+
+	private string? HandleWlRemove(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
+		if (access < EAccess.Master) {
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQWLREMOVE requires Master access.") : null;
+		}
+
+		if (args.Count < 2) {
+			return requestingBot.Commands.FormatBotResponse($"Usage: {WlRemoveCommand} <index|classid>");
+		}
+
+		if (!ulong.TryParse(args[1], out ulong value)) {
+			return requestingBot.Commands.FormatBotResponse("Argument must be a positive integer (index or ClassID).");
+		}
+
+		// Try 1-based index first when value is in int range and within list bounds.
+		// Fall back to ClassID removal for large 64-bit values or when index lookup fails.
+		if (value <= int.MaxValue) {
+			WhitelistEntry? removed = whitelistService.RemoveByIndex((int) value);
+
+			if (removed != null) {
+				return requestingBot.Commands.FormatBotResponse($"Removed [{value}] {removed.Name ?? "(no name)"} | appid={removed.RealAppID} | type={removed.Type} | classid={removed.ClassID}.");
+			}
+		}
+
+		int removedCount = whitelistService.RemoveByClassID(value);
+
+		return removedCount > 0
+			? requestingBot.Commands.FormatBotResponse($"Removed {removedCount} whitelist entry/entries with ClassID {value}.")
+			: requestingBot.Commands.FormatBotResponse($"No whitelist entry found at index or ClassID '{value}'.");
+	}
+
+	private string? HandleWlClear(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
+		if (access < EAccess.Master) {
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQWLCLEAR requires Master access.") : null;
+		}
+
+		bool confirmed = args.Any(static arg => arg.Equals("--confirm", StringComparison.OrdinalIgnoreCase));
+
+		if (!confirmed) {
+			int count = whitelistService.Load().Entries.Count;
+
+			return requestingBot.Commands.FormatBotResponse($"This will remove all {count} whitelist entry/entries. To confirm, run: {WlClearCommand} --confirm");
+		}
+
+		int removed = whitelistService.Clear();
+
+		return requestingBot.Commands.FormatBotResponse($"Whitelist cleared. {removed} entry/entries removed.");
 	}
 
 	private TransferHistory LoadHistoryUnsafe() {
