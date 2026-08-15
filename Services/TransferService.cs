@@ -53,7 +53,8 @@ public sealed class TransferService {
 		}
 
 		if (args.Count < 3) {
-			return requestingBot.Commands.FormatBotResponse($"Usage: {UniqueCommand} <bot1> <bot2> [modes] [--dryrun] [--confirm]");		}
+			return requestingBot.Commands.FormatBotResponse($"Usage: {UniqueCommand} <bot1> <bot2> [modes] [--dryrun] [--confirm] [--force]");
+		}
 
 		if (!TryGetBot(args[1], out Bot? sourceBot) || (sourceBot == null) || !TryGetBot(args[2], out Bot? targetBot) || (targetBot == null)) {
 			return requestingBot.Commands.FormatBotResponse("One or both bot names were not found.");
@@ -67,7 +68,7 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse("Both bots must be connected and logged on before transferring items.");
 		}
 
-		(bool dryRun, bool autoConfirm, List<string> modeTokens) = ParseArguments(args.Skip(3));
+		(bool dryRun, bool autoConfirm, bool force, List<string> modeTokens) = ParseArguments(args.Skip(3));
 
 		if (dryRun && autoConfirm) {
 			return requestingBot.Commands.FormatBotResponse("--dryrun and --confirm cannot be used together. Remove one of the flags.");
@@ -81,7 +82,7 @@ public sealed class TransferService {
 		InventorySelectionResult selectionResult;
 
 		try {
-			selectionResult = await inventoryService.GetUniqueItemsToTransferAsync(sourceBot, targetBot, allowedTypes, whitelistedItems).ConfigureAwait(false);
+			selectionResult = await inventoryService.GetUniqueItemsToTransferAsync(sourceBot, targetBot, allowedTypes, whitelistedItems, force).ConfigureAwait(false);
 		} catch (Exception exception) {
 			sourceBot.ArchiLogger.LogGenericWarningException(exception);
 			return requestingBot.Commands.FormatBotResponse($"Failed to inspect inventories: {exception.Message}");
@@ -100,6 +101,7 @@ public sealed class TransferService {
 			TargetBotName = targetBot.BotName,
 			Modes = normalizedModes,
 			DryRun = dryRun,
+			Force = force,
 			WhitelistedUniqueItemCount = selectionResult.WhitelistedUniqueItemCount,
 			CreatedAtUtc = DateTimeOffset.UtcNow,
 			ExpiresAtUtc = DateTimeOffset.UtcNow.Add(ConfirmationTimeout),
@@ -233,9 +235,10 @@ public sealed class TransferService {
 		return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} completed successfully: {request.TotalItemCount} items in {completedBatchCount} batch(es). Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "created without retrievable IDs")}{BuildWhitelistSummarySuffix(request)}");
 	}
 
-	private static (bool DryRun, bool AutoConfirm, List<string> Modes) ParseArguments(IEnumerable<string> rawArguments) {
+	private static (bool DryRun, bool AutoConfirm, bool Force, List<string> Modes) ParseArguments(IEnumerable<string> rawArguments) {
 		bool dryRun = false;
 		bool autoConfirm = false;
+		bool force = false;
 		List<string> modes = [];
 
 		foreach (string argument in rawArguments) {
@@ -247,13 +250,16 @@ public sealed class TransferService {
 				case "--confirm":
 					autoConfirm = true;
 					break;
+				case "--force":
+					force = true;
+					break;
 				default:
 					modes.Add(argument);
 					break;
 			}
 		}
 
-		return (dryRun, autoConfirm, modes);
+		return (dryRun, autoConfirm, force, modes);
 	}
 
 	private static bool TryGetBot(string botName, out Bot? bot) {
@@ -277,6 +283,8 @@ public sealed class TransferService {
 			.Append(request.TransferId)
 			.Append(" | modes=")
 			.Append(string.Join(",", request.Modes))
+			.Append(" | force=")
+			.Append(request.Force ? "on" : "off")
 			.Append(" | items=")
 			.Append(request.TotalItemCount)
 			.Append(" | batches=")

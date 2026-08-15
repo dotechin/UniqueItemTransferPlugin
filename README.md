@@ -5,6 +5,7 @@ UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** 
 ## Features
 
 - Transfers only items the destination bot does **not** already own
+- Optional `--force` mode to transfer all eligible source items
 - Supports item-type filters for:
   - `cards`
   - `backgrounds`
@@ -18,7 +19,7 @@ UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** 
 
 ## Commands
 
-### `UNIQUEIQ <bot1> <bot2> [modes] [--dryrun] [--confirm]`
+### `UNIQUEIQ <bot1> <bot2> [modes] [--dryrun] [--confirm] [--force]`
 
 Builds a transfer plan from `<bot1>` to `<bot2>`.
 
@@ -28,6 +29,7 @@ Examples:
 UNIQUEIQ MAIN DEPOSIT
 UNIQUEIQ MAIN DEPOSIT cards,backgrounds --dryrun
 UNIQUEIQ MAIN DEPOSIT emoticons --confirm
+UNIQUEIQ MAIN DEPOSIT --force --confirm
 ```
 
 Behavior:
@@ -37,6 +39,7 @@ Behavior:
 - Without `--confirm`, the plugin creates a pending transfer and returns a transfer ID
 - Confirm pending transfers with `UNIIQCONFIRM <transferId>` within 5 minutes
 - `--confirm` executes immediately after planning
+- `--force` transfers all eligible source items (still honoring mode filters and whitelist), without checking whether the destination already owns matching items
 
 ### `UNIIQCONFIRM <transferId>`
 
