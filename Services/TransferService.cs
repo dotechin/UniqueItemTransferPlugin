@@ -46,7 +46,7 @@ public sealed class TransferService {
 
 		string command = args[0].ToUpperInvariant();
 
-		if (IsKnownCommand(command) && IsHelpRequest(args.Skip(1))) {
+		if (IsKnownCommand(command) && IsHelpRequest(args)) {
 			return bot.Commands.FormatBotResponse(BuildHelpMessage());
 		}
 
@@ -252,18 +252,18 @@ public sealed class TransferService {
 
 	private static bool IsKnownCommand(string command) => command is UniqueCommand or ConfirmCommand or HistoryCommand or WlAddCommand or WlListCommand or WlRemoveCommand or WlClearCommand;
 
-	private static bool IsHelpRequest(IEnumerable<string> args) => args.Any(static arg => arg.Equals("--help", StringComparison.OrdinalIgnoreCase) || arg.Equals("-h", StringComparison.OrdinalIgnoreCase));
+	private static bool IsHelpRequest(IReadOnlyList<string> args) => (args.Count == 2) && (args[1].Equals("--help", StringComparison.OrdinalIgnoreCase) || args[1].Equals("-h", StringComparison.OrdinalIgnoreCase));
 
 	private static string BuildHelpMessage() {
 		StringBuilder response = new();
 		response.AppendLine("Available commands:")
-			.AppendLine($"- {UniqueCommand} <bot1> <bot2> [modes] [--dryrun] [--confirm] [--force] — Plan or execute a unique-item transfer.")
-			.AppendLine($"- {ConfirmCommand} <transferId> — Confirm a pending transfer.")
-			.AppendLine($"- {HistoryCommand} — Show recent transfer history.")
-			.AppendLine($"- {WlAddCommand} <botname> [modes] — Add matching inventory items to the whitelist.")
-			.AppendLine($"- {WlListCommand} [page] — List whitelist entries.")
-			.AppendLine($"- {WlRemoveCommand} <index|classid> — Remove a whitelist entry.")
-			.AppendLine($"- {WlClearCommand} [--confirm] — Clear the whitelist.");
+			.AppendLine($"- {UniqueCommand} <bot1> <bot2> [modes] [--dryrun] [--confirm] [--force] - Plan or execute a unique-item transfer.")
+			.AppendLine($"- {ConfirmCommand} <transferId> - Confirm a pending transfer.")
+			.AppendLine($"- {HistoryCommand} - Show recent transfer history.")
+			.AppendLine($"- {WlAddCommand} <botname> [modes] - Add matching inventory items to the whitelist.")
+			.AppendLine($"- {WlListCommand} [page] - List whitelist entries.")
+			.AppendLine($"- {WlRemoveCommand} <index|classid> - Remove a whitelist entry.")
+			.AppendLine($"- {WlClearCommand} [--confirm] - Clear the whitelist.");
 
 		return response.ToString().TrimEnd();
 	}
