@@ -477,21 +477,21 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse("Argument must be a positive integer (index or ClassID).");
 		}
 
-		// Try 1-based index first when value is in int range and within list bounds.
-		// Fall back to ClassID removal for large 64-bit values or when index lookup fails.
+		// Values within int range are treated as 1-based list indexes.
+		// Values outside int range (large 64-bit numbers) are treated as ClassIDs.
 		if (value <= int.MaxValue) {
 			WhitelistEntry? removed = whitelistService.RemoveByIndex((int) value);
 
-			if (removed != null) {
-				return requestingBot.Commands.FormatBotResponse($"Removed [{value}] {removed.Name ?? "(no name)"} | appid={removed.RealAppID} | type={removed.Type} | classid={removed.ClassID}.");
-			}
+			return removed != null
+				? requestingBot.Commands.FormatBotResponse($"Removed [{value}] {removed.Name ?? "(no name)"} | appid={removed.RealAppID} | type={removed.Type} | classid={removed.ClassID}.")
+				: requestingBot.Commands.FormatBotResponse($"No whitelist entry at index {value}. Use '{WlListCommand}' to see valid indexes, or provide a full 64-bit ClassID to remove by ClassID.");
 		}
 
 		int removedCount = whitelistService.RemoveByClassID(value);
 
 		return removedCount > 0
 			? requestingBot.Commands.FormatBotResponse($"Removed {removedCount} whitelist entry/entries with ClassID {value}.")
-			: requestingBot.Commands.FormatBotResponse($"No whitelist entry found at index or ClassID '{value}'.");
+			: requestingBot.Commands.FormatBotResponse($"No whitelist entry found with ClassID {value}.");
 	}
 
 	private string? HandleWlClear(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
