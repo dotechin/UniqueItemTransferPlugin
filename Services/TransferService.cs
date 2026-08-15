@@ -252,7 +252,7 @@ public sealed class TransferService {
 
 	private static bool IsKnownCommand(string command) => command is UniqueCommand or ConfirmCommand or HistoryCommand or WlAddCommand or WlListCommand or WlRemoveCommand or WlClearCommand;
 
-	private static bool IsHelpRequest(IReadOnlyList<string> args) => (args.Count >= 2) && IsHelpFlag(args[^1]);
+	private static bool IsHelpRequest(IReadOnlyList<string> args) => args.Count >= 2 && args.Skip(1).Any(IsHelpFlag);
 
 	private static bool IsHelpFlag(string arg) => arg.Equals("--help", StringComparison.OrdinalIgnoreCase) || arg.Equals("-h", StringComparison.OrdinalIgnoreCase);
 
