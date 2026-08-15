@@ -14,7 +14,7 @@ public sealed class UniqueItemTransferPlugin : IPlugin, IBotCommand2 {
 	public string Name => nameof(UniqueItemTransferPlugin);
 
 	[JsonInclude]
-	public Version Version => typeof(UniqueItemTransferPlugin).Assembly.GetName().Version ?? new Version(7, 0, 0, 0);
+	public Version Version => typeof(UniqueItemTransferPlugin).Assembly.GetName().Version ?? new Version(0, 0, 0, 9);
 
 	public Task OnLoaded() {
 		ASF.ArchiLogger.LogGenericInfo($"{nameof(UniqueItemTransferPlugin)} v{Version} loaded.");

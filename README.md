@@ -1,4 +1,4 @@
-# UniqueItemTransferPlugin v7
+# UniqueItemTransferPlugin v9
 
 UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
