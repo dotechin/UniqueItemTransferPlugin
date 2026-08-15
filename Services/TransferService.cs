@@ -46,7 +46,7 @@ public sealed class TransferService {
 
 		string command = args[0].ToUpperInvariant();
 
-		if (IsKnownCommand(command) && IsHelpRequest(args)) {
+		if (IsKnownCommand(command) && IsHelpRequest(args.Skip(1))) {
 			return bot.Commands.FormatBotResponse(BuildHelpMessage());
 		}
 
@@ -252,7 +252,7 @@ public sealed class TransferService {
 
 	private static bool IsKnownCommand(string command) => command is UniqueCommand or ConfirmCommand or HistoryCommand or WlAddCommand or WlListCommand or WlRemoveCommand or WlClearCommand;
 
-	private static bool IsHelpRequest(IEnumerable<string> args) => args.Skip(1).Any(static arg => arg.Equals("--help", StringComparison.OrdinalIgnoreCase) || arg.Equals("-h", StringComparison.OrdinalIgnoreCase));
+	private static bool IsHelpRequest(IEnumerable<string> args) => args.Any(static arg => arg.Equals("--help", StringComparison.OrdinalIgnoreCase) || arg.Equals("-h", StringComparison.OrdinalIgnoreCase));
 
 	private static string BuildHelpMessage() {
 		StringBuilder response = new();
