@@ -49,24 +49,31 @@ Confirms a pending transfer created by `UNIQUEIQ`.
 
 Shows the latest completed, failed, and dry-run transfer records.
 
-## Build
+### Whitelist
 
-```bash
-dotnet restore
-dotnet build -c Release
-```
+Whitelist have been implemented to add the possibility of keeping items off the automatic trades in spite of the criteria.
 
-## Notes
+## Configuration
 
-- Both bots must be connected and logged on
-- Only tradable items are considered
-- Duplicate detection is based on app, type, and class ID
-- Whitelist exclusions use the same app, type, and class ID matching as duplicate detection
-- Trade offers are sent from the source bot to the destination bot using ASF inventory APIs
-- ASF 6.3.8.4 currently runs on .NET 10, so the plugin targets `net10.0`
-- Transfer history is saved to `transfer-history.json` in the plugin directory (alongside the plugin DLL), capped at 100 entries
+# New Bot Commands for Whitelist Management
 
-## Whitelist configuration
+Add ASF commands that operate on the whitelist directly, so you never need to touch the JSON file:
+
+    UNIIQWLADD <botname> [modes] — Scans a bot's current inventory and adds all matching items (by RealAppID + Type + ClassID) to the whitelist. This directly solves the "mass add items I have right now" use case. The Name field can be populated from the asset's Description.
+    UNIIQWLREMOVE <realappid> <classid> — Removes a specific entry from the whitelist.
+    UNIIQWLLIST [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID.
+    UNIIQWLCLEAR — Clears the entire whitelist (with confirmation step).
+
+# Steam Inventory API Import via Command
+
+Add a command like UNIIQWLIMPORT <botname> [modes] that:
+
+    Calls GetMyInventoryAsync on the specified bot (already done in InventoryService)
+    Extracts RealAppID, Type, and ClassID from each eligible asset
+    Deduplicates by AssetMatchKey and merges into the existing whitelist
+
+
+This is essentially what Option 1's UNIIQWLADD does — the inventory data is already accessible through the existing ArchiHandler calls, so no external Steam API key or browser interaction is needed.
 
 The plugin stores whitelist entries in `item-whitelist.json` next to the plugin DLL.
 
@@ -94,6 +101,23 @@ Each entry matches on:
 - `classID`
 
 When whitelist entries are matched, command output includes the number of unique transfer candidates skipped.
+
+## Build
+
+```bash
+dotnet restore
+dotnet build -c Release
+```
+
+## Notes
+
+- Both bots must be connected and logged on
+- Only tradable items are considered
+- Duplicate detection is based on app, type, and class ID
+- Whitelist exclusions use the same app, type, and class ID matching as duplicate detection
+- Trade offers are sent from the source bot to the destination bot using ASF inventory APIs
+- ASF 6.3.8.4 currently runs on .NET 10, so the plugin targets `net10.0`
+- Transfer history is saved to `transfer-history.json` in the plugin directory (alongside the plugin DLL), capped at 100 entries
 
 ## License
 
