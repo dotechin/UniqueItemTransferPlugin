@@ -57,25 +57,18 @@ Whitelist have been implemented to add the possibility of keeping items off the 
 
 ## Configuration
 
-# New Bot Commands for Whitelist Management
+New Bot Commands for Whitelist Management: add ASF commands that operate on the whitelist directly, so you never need to touch the JSON file:
 
-Add ASF commands that operate on the whitelist directly, so you never need to touch the JSON file:
-
-    UNIIQWLADD <botname> [modes] — Scans a bot's current inventory and adds all matching items (by RealAppID + Type + ClassID) to the whitelist. This directly solves the "mass add items I have right now" use case. The Name field can be populated from the asset's Description.
+    UNIIQWLADD <botname> [modes] — Scans a bot's current inventory and adds all matching items to the whitelist.
     UNIIQWLREMOVE <realappid> <classid> — Removes a specific entry from the whitelist.
     UNIIQWLLIST [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID.
     UNIIQWLCLEAR — Clears the entire whitelist (with confirmation step).
 
-# Steam Inventory API Import via Command
-
-Add a command like UNIIQWLIMPORT <botname> [modes] that:
+Steam Inventory API Import via Command: add a command like UNIIQWLIMPORT <botname> [modes] that:
 
     Calls GetMyInventoryAsync on the specified bot (already done in InventoryService)
     Extracts RealAppID, Type, and ClassID from each eligible asset
     Deduplicates by AssetMatchKey and merges into the existing whitelist
-
-
-This is essentially what Option 1's UNIIQWLADD does — the inventory data is already accessible through the existing ArchiHandler calls, so no external Steam API key or browser interaction is needed.
 
 The plugin stores whitelist entries in `item-whitelist.json` next to the plugin DLL.
 
