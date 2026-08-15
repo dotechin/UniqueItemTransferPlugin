@@ -1,5 +1,6 @@
 using ArchiSteamFarm.Steam;
 using ArchiSteamFarm.Steam.Data;
+using UniqueItemTransferPlugin.Models;
 
 namespace UniqueItemTransferPlugin.Services;
 
@@ -36,22 +37,24 @@ public sealed class InventoryService {
 		return invalidModes.Count == 0;
 	}
 
-	public async Task<IReadOnlyList<Asset>> GetUniqueItemsToTransferAsync(Bot sourceBot, Bot targetBot, IReadOnlySet<EAssetType> allowedTypes) {
+	public async Task<InventorySelectionResult> GetUniqueItemsToTransferAsync(Bot sourceBot, Bot targetBot, IReadOnlySet<EAssetType> allowedTypes, IReadOnlySet<AssetMatchKey> whitelistedItems) {
 		ArgumentNullException.ThrowIfNull(sourceBot);
 		ArgumentNullException.ThrowIfNull(targetBot);
 		ArgumentNullException.ThrowIfNull(allowedTypes);
+		ArgumentNullException.ThrowIfNull(whitelistedItems);
 
-		HashSet<AssetKey> targetOwnedKeys = [];
+		HashSet<AssetMatchKey> targetOwnedKeys = [];
 
 		await foreach (Asset asset in targetBot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID)) {
 			if (!IsEligibleAsset(asset, allowedTypes, requireTradable: false)) {
 				continue;
 			}
 
-			targetOwnedKeys.Add(AssetKey.FromAsset(asset));
+			targetOwnedKeys.Add(AssetMatchKey.FromAsset(asset));
 		}
 
-		HashSet<AssetKey> selectedKeys = [];
+		HashSet<AssetMatchKey> selectedKeys = [];
+		HashSet<AssetMatchKey> whitelistedKeysSeen = [];
 		List<Asset> uniqueItems = [];
 
 		await foreach (Asset asset in sourceBot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID, tradableOnly: true)) {
@@ -59,7 +62,12 @@ public sealed class InventoryService {
 				continue;
 			}
 
-			AssetKey key = AssetKey.FromAsset(asset);
+			AssetMatchKey key = AssetMatchKey.FromAsset(asset);
+
+			if (whitelistedItems.Contains(key)) {
+				whitelistedKeysSeen.Add(key);
+				continue;
+			}
 
 			if (targetOwnedKeys.Contains(key) || !selectedKeys.Add(key)) {
 				continue;
@@ -68,11 +76,14 @@ public sealed class InventoryService {
 			uniqueItems.Add(new Asset(asset.AppID, asset.ContextID, asset.ClassID, 1, asset.Description?.DeepClone(), asset.AssetID, asset.InstanceID));
 		}
 
-		return uniqueItems
-			.OrderBy(static item => item.RealAppID)
-			.ThenBy(static item => item.Type)
-			.ThenBy(static item => item.Description?.Name ?? item.Description?.MarketName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
-			.ToList();
+		return new InventorySelectionResult {
+			Items = uniqueItems
+				.OrderBy(static item => item.RealAppID)
+				.ThenBy(static item => item.Type)
+				.ThenBy(static item => item.Description?.Name ?? item.Description?.MarketName ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+				.ToList(),
+			WhitelistedUniqueItemCount = whitelistedKeysSeen.Count
+		};
 	}
 
 	private static bool IsEligibleAsset(Asset asset, IReadOnlySet<EAssetType> allowedTypes, bool requireTradable) {
@@ -85,9 +96,5 @@ public sealed class InventoryService {
 			!asset.IsSteamPointsShopItem &&
 			(asset.RealAppID != 0) &&
 			allowedTypes.Contains(asset.Type);
-	}
-
-	private readonly record struct AssetKey(uint RealAppID, EAssetType Type, ulong ClassID) {
-		public static AssetKey FromAsset(Asset asset) => new(asset.RealAppID, asset.Type, asset.ClassID);
 	}
 }
