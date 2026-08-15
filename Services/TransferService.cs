@@ -44,7 +44,13 @@ public sealed class TransferService {
 
 		PruneExpiredTransfers();
 
-		return args[0].ToUpperInvariant() switch {
+		string command = args[0].ToUpperInvariant();
+
+		if (IsKnownCommand(command) && IsHelpRequest(args)) {
+			return bot.Commands.FormatBotResponse(BuildHelpMessage());
+		}
+
+		return command switch {
 			UniqueCommand => await HandleUniqueTransferAsync(bot, access, args).ConfigureAwait(false),
 			ConfirmCommand => await HandleConfirmationAsync(bot, access, args).ConfigureAwait(false),
 			HistoryCommand => HandleHistory(bot, access),
@@ -242,6 +248,24 @@ public sealed class TransferService {
 		AppendHistory(CreateHistoryEntry(request, TransferStatus.Completed, completedBatchCount, tradeOfferIds, null));
 
 		return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} completed successfully: {request.TotalItemCount} items in {completedBatchCount} batch(es). Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "created without retrievable IDs")}{BuildWhitelistSummarySuffix(request)}");
+	}
+
+	private static bool IsKnownCommand(string command) => command is UniqueCommand or ConfirmCommand or HistoryCommand or WlAddCommand or WlListCommand or WlRemoveCommand or WlClearCommand;
+
+	private static bool IsHelpRequest(IEnumerable<string> args) => args.Skip(1).Any(static arg => arg.Equals("--help", StringComparison.OrdinalIgnoreCase) || arg.Equals("-h", StringComparison.OrdinalIgnoreCase));
+
+	private static string BuildHelpMessage() {
+		StringBuilder response = new();
+		response.AppendLine("Available commands:")
+			.AppendLine($"- {UniqueCommand} <bot1> <bot2> [modes] [--dryrun] [--confirm] [--force] — Plan or execute a unique-item transfer.")
+			.AppendLine($"- {ConfirmCommand} <transferId> — Confirm a pending transfer.")
+			.AppendLine($"- {HistoryCommand} — Show recent transfer history.")
+			.AppendLine($"- {WlAddCommand} <botname> [modes] — Add matching inventory items to the whitelist.")
+			.AppendLine($"- {WlListCommand} [page] — List whitelist entries.")
+			.AppendLine($"- {WlRemoveCommand} <index|classid> — Remove a whitelist entry.")
+			.AppendLine($"- {WlClearCommand} [--confirm] — Clear the whitelist.");
+
+		return response.ToString().TrimEnd();
 	}
 
 	private static (bool DryRun, bool AutoConfirm, bool Force, List<string> Modes) ParseArguments(IEnumerable<string> rawArguments) {

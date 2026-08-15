@@ -19,6 +19,8 @@ UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** 
 
 ## Commands
 
+Run any plugin command with `--help` to print the full command list with short descriptions.
+
 ### `UNIQUEIQ <bot1> <bot2> [modes] [--dryrun] [--confirm] [--force]`
 
 Builds a transfer plan from `<bot1>` to `<bot2>`.
