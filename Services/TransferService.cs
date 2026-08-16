@@ -222,15 +222,16 @@ public sealed class TransferService {
 		}
 
 		List<ulong> tradeOfferIds = [];
+		List<ulong> mobileApprovalOfferIds = [];
 		int completedBatchCount = 0;
 
 		foreach (TransferBatch batch in request.Batches) {
 			try {
-				(bool success, HashSet<ulong>? offerIds, _) = await sourceBot.ArchiWebHandler.SendTradeOffer(targetBot.SteamID, itemsToGive: batch.ToAssets(), token: string.IsNullOrEmpty(tradeToken) ? null : tradeToken, customMessage: $"{nameof(UniqueItemTransferPlugin)} {request.TransferId} batch {batch.BatchNumber}/{request.BatchCount}", forcedSingleOffer: true, itemsPerTrade: BatchingService.SafeBatchLimit).ConfigureAwait(false);
+				(bool success, HashSet<ulong>? offerIds, HashSet<ulong>? mobileOffersRequiringApproval) = await sourceBot.ArchiWebHandler.SendTradeOffer(targetBot.SteamID, itemsToGive: batch.ToAssets(), token: string.IsNullOrEmpty(tradeToken) ? null : tradeToken, customMessage: $"{nameof(UniqueItemTransferPlugin)} {request.TransferId} batch {batch.BatchNumber}/{request.BatchCount}", forcedSingleOffer: true, itemsPerTrade: BatchingService.SafeBatchLimit).ConfigureAwait(false);
 
 				if (!success) {
 					AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? TransferStatus.PartialFailure : TransferStatus.Failed, completedBatchCount, tradeOfferIds, $"Steam rejected batch {batch.BatchNumber}."));
-					return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} failed while sending batch {batch.BatchNumber}/{request.BatchCount}. Sent batches: {completedBatchCount}. Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "none")}{BuildWhitelistSummarySuffix(request)}");
+					return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} failed while sending batch {batch.BatchNumber}/{request.BatchCount}. Sent batches: {completedBatchCount}. Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "none")}{BuildMobileApprovalSummarySuffix(mobileApprovalOfferIds)}{BuildWhitelistSummarySuffix(request)}");
 				}
 
 				completedBatchCount++;
@@ -238,16 +239,20 @@ public sealed class TransferService {
 				if (offerIds != null) {
 					tradeOfferIds.AddRange(offerIds);
 				}
+
+				if (mobileOffersRequiringApproval != null) {
+					mobileApprovalOfferIds.AddRange(mobileOffersRequiringApproval);
+				}
 			} catch (Exception exception) {
 				sourceBot.ArchiLogger.LogGenericWarningException(exception);
 				AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? TransferStatus.PartialFailure : TransferStatus.Failed, completedBatchCount, tradeOfferIds, exception.Message));
-				return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} aborted on batch {batch.BatchNumber}/{request.BatchCount}: {exception.Message}{BuildWhitelistSummarySuffix(request)}");
+				return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} aborted on batch {batch.BatchNumber}/{request.BatchCount}: {exception.Message}{BuildMobileApprovalSummarySuffix(mobileApprovalOfferIds)}{BuildWhitelistSummarySuffix(request)}");
 			}
 		}
 
 		AppendHistory(CreateHistoryEntry(request, TransferStatus.Completed, completedBatchCount, tradeOfferIds, null));
 
-		return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} completed successfully: {request.TotalItemCount} items in {completedBatchCount} batch(es). Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "created without retrievable IDs")}{BuildWhitelistSummarySuffix(request)}");
+		return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} completed successfully: {request.TotalItemCount} items in {completedBatchCount} batch(es). Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "created without retrievable IDs")}{BuildMobileApprovalSummarySuffix(mobileApprovalOfferIds)}{BuildWhitelistSummarySuffix(request)}");
 	}
 
 	private static bool IsKnownCommand(string command) => command is UniqueCommand or ConfirmCommand or HistoryCommand or WlAddCommand or WlListCommand or WlRemoveCommand or WlClearCommand;
@@ -369,6 +374,10 @@ public sealed class TransferService {
 	}
 
 	private static string BuildWhitelistSummarySuffix(TransferRequest request) => request.WhitelistedUniqueItemCount > 0 ? $" | whitelistedUniqueItems={request.WhitelistedUniqueItemCount}" : string.Empty;
+
+	private static string BuildMobileApprovalSummarySuffix(List<ulong> mobileApprovalOfferIds) => mobileApprovalOfferIds.Count == 0
+		? " | mobileApproval=pending:none"
+		: $" | mobileApproval=pending:{string.Join(", ", mobileApprovalOfferIds.Distinct())}";
 
 	private void PruneExpiredTransfers() {
 		DateTimeOffset now = DateTimeOffset.UtcNow;
