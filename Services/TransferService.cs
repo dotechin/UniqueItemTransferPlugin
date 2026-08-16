@@ -222,7 +222,7 @@ public sealed class TransferService {
 		}
 
 		List<ulong> tradeOfferIds = [];
-		List<ulong> mobileApprovalOfferIds = [];
+		HashSet<ulong> mobileApprovalOfferIds = [];
 		int completedBatchCount = 0;
 
 		foreach (TransferBatch batch in request.Batches) {
@@ -241,7 +241,7 @@ public sealed class TransferService {
 				}
 
 				if (mobileOffersRequiringApproval != null) {
-					mobileApprovalOfferIds.AddRange(mobileOffersRequiringApproval);
+					mobileApprovalOfferIds.UnionWith(mobileOffersRequiringApproval);
 				}
 			} catch (Exception exception) {
 				sourceBot.ArchiLogger.LogGenericWarningException(exception);
@@ -375,9 +375,9 @@ public sealed class TransferService {
 
 	private static string BuildWhitelistSummarySuffix(TransferRequest request) => request.WhitelistedUniqueItemCount > 0 ? $" | whitelistedUniqueItems={request.WhitelistedUniqueItemCount}" : string.Empty;
 
-	private static string BuildMobileApprovalSummarySuffix(List<ulong> mobileApprovalOfferIds) => mobileApprovalOfferIds.Count == 0
-		? " | mobileApproval=pending:none"
-		: $" | mobileApproval=pending:{string.Join(", ", mobileApprovalOfferIds.Distinct())}";
+	private static string BuildMobileApprovalSummarySuffix(HashSet<ulong> mobileApprovalOfferIds) => mobileApprovalOfferIds.Count == 0
+		? string.Empty
+		: $" | mobileApprovalRequired={string.Join(", ", mobileApprovalOfferIds)}";
 
 	private void PruneExpiredTransfers() {
 		DateTimeOffset now = DateTimeOffset.UtcNow;
