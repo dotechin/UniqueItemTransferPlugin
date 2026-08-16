@@ -28,34 +28,41 @@ jobs:
               raise SystemExit("Version tag with semver format not found")
 
           major, minor, patch = map(int, version_match.groups())
-          message = (os.environ.get("COMMIT_MESSAGE", "") + "\n" + os.environ.get("COMMIT_BODY", "")).strip()
-          lowered = message.lower()
+          full_message = os.environ.get("COMMIT_MESSAGE", "").strip()
+          lines = full_message.splitlines()
+          subject = lines[0].strip() if lines else ""
 
-          if "breaking change" in lowered or re.search(r"\w+!:", message):
+          has_breaking_footer = re.search(r"^BREAKING[- ]CHANGE:\s+", full_message, re.IGNORECASE | re.MULTILINE) is not None
+
+          if has_breaking_footer or re.search(r"^\w+(\(.+\))?!:", subject, re.IGNORECASE):
               major += 1
               minor = 0
               patch = 0
-          elif re.search(r"^feat(\(.+\))?:", message, re.IGNORECASE):
+          elif re.search(r"^feat(\(.+\))?:", subject, re.IGNORECASE):
               minor += 1
               patch = 0
-          else:
+          elif re.search(r"^(fix|perf|refactor|revert)(\(.+\))?:", subject, re.IGNORECASE):
               patch += 1
+          else:
+              print("No version bump for this commit type.")
+              with pathlib.Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+                  output.write("new_version=\n")
+              raise SystemExit(0)
 
           new_version = f"{major}.{minor}.{patch}"
-          new_assembly = f"{major}.{minor}.0.{patch}"
+          new_assembly = f"{major}.{minor}.{patch}.0"
 
           content = re.sub(r"<Version>\d+\.\d+\.\d+</Version>", f"<Version>{new_version}</Version>", content, count=1)
           content = re.sub(r"<AssemblyVersion>\d+\.\d+\.\d+\.\d+</AssemblyVersion>", f"<AssemblyVersion>{new_assembly}</AssemblyVersion>", content, count=1)
           content = re.sub(r"<FileVersion>\d+\.\d+\.\d+\.\d+</FileVersion>", f"<FileVersion>{new_assembly}</FileVersion>", content, count=1)
 
           project.write_text(content, encoding="utf-8")
-          print(f"new_version={new_version}")
+          print(f"Bumping version to {new_version}")
           with pathlib.Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
               output.write(f"new_version={new_version}\n")
           PY
         env:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
-          COMMIT_BODY: ${{ github.event.head_commit.body }}
       - name: Commit version bump
         run: |
           if git diff --quiet; then
