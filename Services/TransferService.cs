@@ -9,13 +9,13 @@ using UniqueItemTransferPlugin.Models;
 namespace UniqueItemTransferPlugin.Services;
 
 public sealed class TransferService {
-	private const string UniqueCommand = "UNIQUEIQ";
-	private const string ConfirmCommand = "UNIIQCONFIRM";
-	private const string HistoryCommand = "UNIIQHISTORY";
-	private const string WlAddCommand = "UNIIQWLADD";
-	private const string WlListCommand = "UNIIQWLLIST";
-	private const string WlRemoveCommand = "UNIIQWLREMOVE";
-	private const string WlClearCommand = "UNIIQWLCLEAR";
+	private const string UniqueCommand = "uniqueiq";
+	private const string ConfirmCommand = "uniiqconfirm";
+	private const string HistoryCommand = "uniiqhistory";
+	private const string WlAddCommand = "uniiqwladd";
+	private const string WlListCommand = "uniiqwllist";
+	private const string WlRemoveCommand = "uniiqwlremove";
+	private const string WlClearCommand = "uniiqwlclear";
 	private const int WlListPageSize = 20;
 	private static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(5);
 	private static readonly JsonSerializerOptions JsonOptions = new() {
@@ -44,7 +44,7 @@ public sealed class TransferService {
 
 		PruneExpiredTransfers();
 
-		string command = args[0].ToUpperInvariant();
+		string command = args[0].ToLowerInvariant();
 
 		if (IsKnownCommand(command) && IsHelpRequest(args)) {
 			return bot.Commands.FormatBotResponse(BuildHelpMessage());
@@ -64,7 +64,7 @@ public sealed class TransferService {
 
 	private async Task<string?> HandleUniqueTransferAsync(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
 		if (access < EAccess.Master) {
-			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIQUEIQ requires Master access.") : null;
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {UniqueCommand} requires Master access.") : null;
 		}
 
 		if (args.Count < 3) {
@@ -139,7 +139,7 @@ public sealed class TransferService {
 
 	private async Task<string?> HandleConfirmationAsync(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
 		if (access < EAccess.Master) {
-			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQCONFIRM requires Master access.") : null;
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {ConfirmCommand} requires Master access.") : null;
 		}
 
 		if ((args.Count != 2) || !Guid.TryParse(args[1], out Guid transferId)) {
@@ -160,7 +160,7 @@ public sealed class TransferService {
 
 	private string? HandleHistory(Bot requestingBot, EAccess access) {
 		if (access < EAccess.Master) {
-			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQHISTORY requires Master access.") : null;
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {HistoryCommand} requires Master access.") : null;
 		}
 
 		TransferHistory history = LoadHistory();
@@ -427,7 +427,7 @@ public sealed class TransferService {
 
 	private async Task<string?> HandleWlAddAsync(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
 		if (access < EAccess.Master) {
-			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQWLADD requires Master access.") : null;
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {WlAddCommand} requires Master access.") : null;
 		}
 
 		if (args.Count < 2) {
@@ -461,7 +461,7 @@ public sealed class TransferService {
 
 	private string? HandleWlList(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
 		if (access < EAccess.Master) {
-			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQWLLIST requires Master access.") : null;
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {WlListCommand} requires Master access.") : null;
 		}
 
 		int page = 1;
@@ -509,7 +509,7 @@ public sealed class TransferService {
 
 	private string? HandleWlRemove(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
 		if (access < EAccess.Master) {
-			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQWLREMOVE requires Master access.") : null;
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {WlRemoveCommand} requires Master access.") : null;
 		}
 
 		if (args.Count < 2) {
@@ -539,7 +539,7 @@ public sealed class TransferService {
 
 	private string? HandleWlClear(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
 		if (access < EAccess.Master) {
-			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse("Access denied. UNIIQWLCLEAR requires Master access.") : null;
+			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {WlClearCommand} requires Master access.") : null;
 		}
 
 		bool confirmed = args.Any(static arg => arg.Equals("--confirm", StringComparison.OrdinalIgnoreCase));
