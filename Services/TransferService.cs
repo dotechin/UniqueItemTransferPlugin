@@ -9,13 +9,13 @@ using UniqueItemTransferPlugin.Models;
 namespace UniqueItemTransferPlugin.Services;
 
 public sealed class TransferService {
-	private const string UniqueCommand = "uniqueiq";
-	private const string ConfirmCommand = "uniiqconfirm";
-	private const string HistoryCommand = "uniiqhistory";
-	private const string WlAddCommand = "uniiqwladd";
-	private const string WlListCommand = "uniiqwllist";
-	private const string WlRemoveCommand = "uniiqwlremove";
-	private const string WlClearCommand = "uniiqwlclear";
+	private const string UniqueCommand = "unique";
+	private const string ConfirmCommand = "uniqconfirm";
+	private const string HistoryCommand = "uniqhistory";
+	private const string WlAddCommand = "uniqwladd";
+	private const string WlListCommand = "uniqwllist";
+	private const string WlRemoveCommand = "uniqwlremove";
+	private const string WlClearCommand = "uniqwlclear";
 	private const int WlListPageSize = 20;
 	private static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(5);
 	private static readonly JsonSerializerOptions JsonOptions = new() {
