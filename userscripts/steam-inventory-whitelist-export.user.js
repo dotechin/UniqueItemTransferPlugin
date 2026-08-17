@@ -512,7 +512,7 @@
                 element.style.position = 'relative';
             }
 
-            let overlay = element.querySelector(`.${OVERLAY_CLASS}[data-key="${cssEscape(entry.key)}"]`);
+            let overlay = Array.from(element.querySelectorAll(`.${OVERLAY_CLASS}`)).find(candidate => candidate.dataset.key === entry.key) || null;
             if (!(overlay instanceof HTMLElement)) {
                 overlay = document.createElement('label');
                 overlay.className = OVERLAY_CLASS;
