@@ -27,7 +27,6 @@
 
     const state = {
         selected: new Map(),
-        lastSignature: '',
         observer: null,
         observedRoot: null,
         refreshPending: false
@@ -143,7 +142,7 @@
                 <button type="button" data-action="copy-file">Copy full file JSON</button>
                 <button type="button" data-action="clear-all">Clear all</button>
             </div>
-            <div class="uitp-note">Exports only Steam Community items that map cleanly to TradingCard, FoilTradingCard, ProfileBackground, or Emoticon. Exact uniqwladd generation and direct plugin-directory writes are intentionally not supported.</div>
+            <div class="uitp-note">Exports only Steam Community items that map cleanly to TradingCard, FoilTradingCard, ProfileBackground, or Emoticon. Exact <code>uniqwladd</code> command generation and direct plugin-directory writes are intentionally not supported.</div>
         `;
 
         panel.addEventListener('click', onPanelClick);
@@ -193,11 +192,6 @@
         const inventory = getActiveInventory();
         const visibleEntries = collectVisibleEntries(inventory);
         const inventoryReady = isPluginInventory(inventory);
-        const signature = visibleEntries.map(entry => entry.key).join('|');
-
-        if (signature !== state.lastSignature) {
-            state.lastSignature = signature;
-        }
 
         for (const [key] of state.selected) {
             if (!key || typeof key !== 'string') {
