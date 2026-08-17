@@ -97,6 +97,37 @@ Each entry matches on:
 
 When whitelist entries are matched, command output includes the number of unique transfer candidates skipped.
 
+
+### External Steam inventory userscript
+
+This repository now includes a standalone userscript at `userscripts/steam-inventory-whitelist-export.user.js` for building whitelist entries from the Steam inventory page. The `userscripts` folder is kept self-contained so it can be promoted into its own standalone repository later.
+
+What it does:
+
+- Detects eligible Steam Community inventory items for this plugin
+- Excludes non-tradable items, including event-style items, and point-shop items
+- Adds a whitelist checkbox overlay per visible item
+- Supports page-level select visible / clear visible actions
+- Exports:
+  - selected entries JSON array
+  - merge-ready entry fragment for an existing `entries` array
+  - full `item-whitelist.json` content
+
+Current limitations:
+
+- It only exports tradable items that map cleanly to `TradingCard`, `FoilTradingCard`, `ProfileBackground`, and `Emoticon`
+- It does not generate exact item-specific `uniqwladd` commands, because `uniqwladd` currently imports by inventory scan and mode rather than explicit item IDs
+- It does not write directly into the plugin directory; copy the exported JSON into `item-whitelist.json` manually
+
+Suggested workflow:
+
+1. Install the userscript in a userscript manager such as Tampermonkey.
+2. Open the Steam inventory page for the account whose items you want to whitelist.
+3. Use the per-item checkboxes or the panel's page-level actions.
+4. Copy the full file JSON or merge fragment.
+5. Paste the result into `item-whitelist.json` next to the plugin DLL.
+
+
 ## Build
 
 ```bash
