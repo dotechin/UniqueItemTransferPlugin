@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         UniqueItemTransferPlugin Steam Inventory Whitelist Export
 // @namespace    https://github.com/dotechin/UniqueItemTransferPlugin
-// @version      0.1.0
+// @version      0.2.0
 // @description  Select eligible Steam inventory items and export whitelist JSON compatible with UniqueItemTransferPlugin.
 // @match        https://steamcommunity.com/id/*/inventory*
 // @match        https://steamcommunity.com/profiles/*/inventory*
@@ -113,10 +113,12 @@
                 border-radius: 4px;
                 background: rgba(23, 26, 33, 0.82);
                 box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+                pointer-events: none;
             }
             .${OVERLAY_CLASS} input {
                 margin: 0;
                 cursor: pointer;
+                pointer-events: auto;
             }
         `;
 
@@ -270,7 +272,7 @@
 
         const entries = [];
         const seen = new Set();
-        const inventoryItems = Object.values(inventory.rgInventory || {});
+        const inventoryItems = Object.values(inventory.rgInventory || inventory.m_rgAssets || {});
 
         for (const item of inventoryItems) {
             const element = getItemElement(inventory, item);
@@ -296,7 +298,8 @@
             return null;
         }
 
-        const inventoryElement = inventory.rgItemElements?.[item.id] || inventory.rgItemElements?.[item.assetid] || null;
+        const inventoryElement = inventory.rgItemElements?.[item.id] || inventory.rgItemElements?.[item.assetid] ||
+            inventory.m_rgItemElements?.[item.id] || inventory.m_rgItemElements?.[item.assetid] || null;
         if (inventoryElement instanceof Element) {
             return inventoryElement;
         }
@@ -323,12 +326,13 @@
             return false;
         }
 
-        if (element.offsetParent === null) {
+        const style = window.getComputedStyle(element);
+        if (style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse') {
             return false;
         }
 
-        const style = window.getComputedStyle(element);
-        return style.display !== 'none' && style.visibility !== 'hidden';
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
     }
 
     function buildEntry(inventory, item) {
@@ -358,7 +362,7 @@
         const classId = item.classid ?? item.classID;
         const instanceId = item.instanceid ?? item.instanceID ?? '0';
         const compositeKey = `${classId}_${instanceId}`;
-        return inventory.rgDescriptions?.[compositeKey] || null;
+        return inventory.rgDescriptions?.[compositeKey] || inventory.m_rgDescriptions?.[compositeKey] || null;
     }
 
 
@@ -527,7 +531,8 @@
                     } else {
                         state.selected.delete(entry.key);
                     }
-                    updatePanel(collectVisibleEntries(), true);
+                    const inv = getActiveInventory();
+                    updatePanel(collectVisibleEntries(inv), isPluginInventory(inv));
                 });
                 overlay.appendChild(checkbox);
                 element.appendChild(overlay);
