@@ -21,6 +21,15 @@ internal static class WhitelistApiService {
 		string? typeFilter = context.Request.Query["type"].FirstOrDefault();
 		int pageQuery = int.TryParse(context.Request.Query["page"].FirstOrDefault(), out int parsedPage) && parsedPage > 0 ? parsedPage : 1;
 		int pageSizeQuery = int.TryParse(context.Request.Query["pageSize"].FirstOrDefault(), out int parsedSize) && parsedSize > 0 ? Math.Min(parsedSize, 200) : 50;
+		EAssetType? filterType = null;
+
+		if (!string.IsNullOrEmpty(typeFilter)) {
+			if (!Enum.TryParse(typeFilter, ignoreCase: true, out EAssetType parsedType)) {
+				return Results.BadRequest(new { error = $"Unsupported type '{typeFilter}'." });
+			}
+
+			filterType = parsedType;
+		}
 
 		WhitelistConfiguration config = TransferService.Instance.GetWhitelistConfiguration();
 
@@ -28,8 +37,8 @@ internal static class WhitelistApiService {
 		IEnumerable<(int OriginalIndex, WhitelistEntry Entry)> indexed = config.Entries
 			.Select((e, i) => (OriginalIndex: i + 1, Entry: e));
 
-		if (!string.IsNullOrEmpty(typeFilter) && Enum.TryParse(typeFilter, ignoreCase: true, out EAssetType filterType)) {
-			indexed = indexed.Where(p => p.Entry.Type == filterType);
+		if (filterType is not null) {
+			indexed = indexed.Where(p => p.Entry.Type == filterType.Value);
 		}
 
 		List<(int OriginalIndex, WhitelistEntry Entry)> filteredList = indexed.ToList();
