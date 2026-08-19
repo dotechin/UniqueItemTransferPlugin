@@ -61,7 +61,7 @@ New Bot Commands for Whitelist Management: add ASF commands that operate on the 
 
     uniqwladd <botname> [modes] — Scans a bot's current inventory and adds all matching items.
     uniqwlremove <realappid> <classid> — Removes a specific entry from the whitelist.
-    uniqwllist [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID.
+    uniqwlist [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID. Running with no arguments auto-advances to the next page.
     uniqwlclear — Clears the entire whitelist (with confirmation step).
 
 Steam Inventory API Import via Command: add a command like uniqwlimport <botname> [modes] that:
