@@ -196,13 +196,16 @@
         tr.innerHTML = '<td colspan="6" style="text-align:center;color:#888">No entries.</td>';
         tbody.appendChild(tr);
       } else {
+        const esc = (value) => String(value).replace(/[&<>"']/g, c => ({
+          '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+        }[c]));
         data.entries.forEach(entry => {
           const tr = document.createElement('tr');
           tr.dataset.index = entry.index;
           tr.innerHTML = `
             <td><input type="checkbox" class="rowChk" data-index="${entry.index}" /></td>
             <td>${entry.index}</td>
-            <td>${entry.name ?? '—'}</td>
+            <td>${esc(entry.name ?? '—')}</td>
             <td>${entry.type}</td>
             <td>${entry.classID}</td>
             <td>${entry.realAppID}</td>
