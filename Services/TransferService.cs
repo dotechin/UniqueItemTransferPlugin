@@ -485,7 +485,7 @@ public sealed class TransferService {
 			page = Math.Min(page, totalPages);
 			wlListPageState[steamID] = page;
 		} else {
-			if (CanBrowseWhitelistInteractivelyInConsole()) {
+			if (steamID == 0 && CanBrowseWhitelistInteractivelyInConsole()) {
 				return BrowseWhitelistInteractively(requestingBot, entries, steamID, totalPages);
 			}
 
