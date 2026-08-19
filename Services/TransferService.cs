@@ -18,6 +18,7 @@ public sealed class TransferService {
 	private const string WlClearCommand = "uniqwlclear";
 	private const int WlListPageSize = 20;
 	private static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(5);
+	private static readonly object WlConsoleBrowseLock = new();
 	private static readonly JsonSerializerOptions JsonOptions = new() {
 		WriteIndented = true,
 		Converters = { new JsonStringEnumConverter() }
@@ -277,7 +278,7 @@ public sealed class TransferService {
 			.AppendLine($"- {ConfirmCommand} <transferId> - Confirm a pending transfer.")
 			.AppendLine($"- {HistoryCommand} - Show recent transfer history.")
 			.AppendLine($"- {WlAddCommand} <botname> [modes] - Add matching inventory items to the whitelist.")
-			.AppendLine($"- {WlListCommand} [page] - List whitelist entries (no page = auto-advance).")
+			.AppendLine($"- {WlListCommand} [page] - List whitelist entries (no page = interactive in console, auto-advance otherwise).")
 			.AppendLine($"- {WlRemoveCommand} <index|classid> - Remove a whitelist entry.")
 			.AppendLine($"- {WlClearCommand} [--confirm] - Clear the whitelist.");
 
@@ -484,11 +485,54 @@ public sealed class TransferService {
 			page = Math.Min(page, totalPages);
 			wlListPageState[steamID] = page;
 		} else {
+			if (steamID == 0 && CanBrowseWhitelistInteractivelyInConsole()) {
+				return BrowseWhitelistInteractively(requestingBot, entries, steamID, totalPages);
+			}
+
 			int lastPage = wlListPageState.GetValueOrDefault(steamID, 0);
 			page = (lastPage >= totalPages) ? 1 : lastPage + 1;
 			wlListPageState[steamID] = page;
 		}
 
+		return requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: true));
+	}
+
+	private static bool CanBrowseWhitelistInteractivelyInConsole() => Environment.UserInteractive && !Console.IsInputRedirected && !Console.IsOutputRedirected;
+
+	private string BrowseWhitelistInteractively(Bot requestingBot, IReadOnlyList<WhitelistEntry> entries, ulong steamID, int totalPages) {
+		lock (WlConsoleBrowseLock) {
+			int lastPage = wlListPageState.GetValueOrDefault(steamID, 0);
+			int page = (lastPage >= totalPages) ? 1 : lastPage + 1;
+			bool interruptedByUser = false;
+
+			while (true) {
+				Console.WriteLine(requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: false)));
+
+				if (page >= totalPages) {
+					break;
+				}
+
+				Console.Write("Press any key for next page (Esc to stop): ");
+				ConsoleKeyInfo key = Console.ReadKey(intercept: true);
+				Console.WriteLine();
+
+				if (key.Key == ConsoleKey.Escape) {
+					interruptedByUser = true;
+					break;
+				}
+
+				page++;
+			}
+
+			wlListPageState[steamID] = page;
+
+			return interruptedByUser
+				? requestingBot.Commands.FormatBotResponse($"Interactive browsing stopped at page {page}/{totalPages}. Run '{WlListCommand}' again to continue.")
+				: requestingBot.Commands.FormatBotResponse($"Reached the end of the list at page {page}/{totalPages}. Run '{WlListCommand}' again to start from the beginning.");
+		}
+	}
+
+	private static string BuildWhitelistPage(IReadOnlyList<WhitelistEntry> entries, int page, int totalPages, bool includeContinuationHint) {
 		IEnumerable<(int Index, WhitelistEntry Entry)> pageEntries = entries
 			.Select(static (entry, i) => (Index: i + 1, Entry: entry))
 			.Skip((page - 1) * WlListPageSize)
@@ -510,13 +554,15 @@ public sealed class TransferService {
 				.AppendLine(entry.ClassID.ToString());
 		}
 
-		if (page < totalPages) {
-			response.Append($"Run '{WlListCommand}' again to see the next page.");
-		} else {
-			response.Append($"End of list. Run '{WlListCommand}' again to start from the beginning.");
+		if (includeContinuationHint) {
+			if (page < totalPages) {
+				response.Append($"Run '{WlListCommand}' again to see the next page.");
+			} else {
+				response.Append($"End of list. Run '{WlListCommand}' again to start from the beginning.");
+			}
 		}
 
-		return requestingBot.Commands.FormatBotResponse(response.ToString().TrimEnd());
+		return response.ToString().TrimEnd();
 	}
 
 	private string? HandleWlRemove(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
