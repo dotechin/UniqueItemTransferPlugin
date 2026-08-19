@@ -6,7 +6,8 @@ using UniqueItemTransferPlugin.Models;
 
 namespace UniqueItemTransferPlugin.Services;
 
-internal static class WhitelistApiService {	internal static void MapEndpoints(IEndpointRouteBuilder routes) {
+internal static class WhitelistApiService {
+	internal static void MapEndpoints(IEndpointRouteBuilder routes) {
 		RouteGroupBuilder group = routes.MapGroup("/api/UniqueItemTransfer");
 
 		group.MapGet("/whitelist", GetWhitelist);
