@@ -45,7 +45,7 @@ public sealed class WhitelistService {
 
 		Dictionary<AssetMatchKey, WhitelistEntry> newEntries = [];
 
-		await foreach (Asset asset in bot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID)) {
+		await foreach (Asset asset in bot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID, tradableOnly: true)) {
 			if (!IsEligibleAsset(asset, allowedTypes)) {
 				continue;
 			}
@@ -164,6 +164,7 @@ public sealed class WhitelistService {
 	private static bool IsEligibleAsset(Asset asset, IReadOnlySet<EAssetType> allowedTypes) =>
 		(asset.AppID == Asset.SteamAppID) &&
 		(asset.ContextID == Asset.SteamCommunityContextID) &&
+		asset.Tradable &&
 		!asset.IsSteamPointsShopItem &&
 		(asset.RealAppID != 0) &&
 		allowedTypes.Contains(asset.Type);

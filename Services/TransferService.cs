@@ -13,7 +13,7 @@ public sealed class TransferService {
 	private const string ConfirmCommand = "uniqconfirm";
 	private const string HistoryCommand = "uniqhistory";
 	private const string WlAddCommand = "uniqwladd";
-	private const string WlListCommand = "uniqwllist";
+	private const string WlListCommand = "uniqwlist";
 	private const string WlRemoveCommand = "uniqwlremove";
 	private const string WlClearCommand = "uniqwlclear";
 	private const int WlListPageSize = 20;
@@ -28,6 +28,7 @@ public sealed class TransferService {
 	private readonly BatchingService batchingService = new();
 	private readonly InventoryService inventoryService = new();
 	private readonly ConcurrentDictionary<Guid, TransferRequest> pendingTransfers = new();
+	private readonly ConcurrentDictionary<ulong, int> wlListPageState = new();
 	private readonly object historyLock = new();
 	private readonly string historyPath;
 	private readonly WhitelistService whitelistService;
@@ -55,7 +56,7 @@ public sealed class TransferService {
 			ConfirmCommand => await HandleConfirmationAsync(bot, access, args).ConfigureAwait(false),
 			HistoryCommand => HandleHistory(bot, access),
 			WlAddCommand => await HandleWlAddAsync(bot, access, args).ConfigureAwait(false),
-			WlListCommand => HandleWlList(bot, access, args),
+			WlListCommand => HandleWlList(bot, access, args, steamID),
 			WlRemoveCommand => HandleWlRemove(bot, access, args),
 			WlClearCommand => HandleWlClear(bot, access, args),
 			_ => null
@@ -276,7 +277,7 @@ public sealed class TransferService {
 			.AppendLine($"- {ConfirmCommand} <transferId> - Confirm a pending transfer.")
 			.AppendLine($"- {HistoryCommand} - Show recent transfer history.")
 			.AppendLine($"- {WlAddCommand} <botname> [modes] - Add matching inventory items to the whitelist.")
-			.AppendLine($"- {WlListCommand} [page] - List whitelist entries.")
+			.AppendLine($"- {WlListCommand} [page] - List whitelist entries (no page = auto-advance).")
 			.AppendLine($"- {WlRemoveCommand} <index|classid> - Remove a whitelist entry.")
 			.AppendLine($"- {WlClearCommand} [--confirm] - Clear the whitelist.");
 
@@ -451,7 +452,7 @@ public sealed class TransferService {
 		try {
 			(int added, int skipped) = await whitelistService.AddFromInventoryAsync(targetBot, allowedTypes).ConfigureAwait(false);
 
-			return requestingBot.Commands.FormatBotResponse($"Whitelist updated from {targetBot.BotName}'s inventory: {added} item(s) added, {skipped} already present.");
+			return requestingBot.Commands.FormatBotResponse($"Whitelist updated from {targetBot.BotName}'s inventory: {added} tradable item(s) added, {skipped} already present. Non-tradable items were excluded.");
 		} catch (Exception exception) {
 			targetBot.ArchiLogger.LogGenericWarningException(exception);
 
@@ -459,25 +460,34 @@ public sealed class TransferService {
 		}
 	}
 
-	private string? HandleWlList(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
+	private string? HandleWlList(Bot requestingBot, EAccess access, IReadOnlyList<string> args, ulong steamID) {
 		if (access < EAccess.Master) {
 			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {WlListCommand} requires Master access.") : null;
-		}
-
-		int page = 1;
-
-		if ((args.Count >= 2) && (!int.TryParse(args[1], out page) || (page < 1))) {
-			return requestingBot.Commands.FormatBotResponse("Page must be a positive integer.");
 		}
 
 		List<WhitelistEntry> entries = whitelistService.Load().Entries;
 
 		if (entries.Count == 0) {
+			wlListPageState.TryRemove(steamID, out _);
+
 			return requestingBot.Commands.FormatBotResponse("The whitelist is empty.");
 		}
 
 		int totalPages = (int) Math.Ceiling(entries.Count / (double) WlListPageSize);
-		page = Math.Min(page, totalPages);
+		int page;
+
+		if (args.Count >= 2) {
+			if (!int.TryParse(args[1], out page) || (page < 1)) {
+				return requestingBot.Commands.FormatBotResponse("Page must be a positive integer.");
+			}
+
+			page = Math.Min(page, totalPages);
+			wlListPageState[steamID] = page;
+		} else {
+			int lastPage = wlListPageState.GetValueOrDefault(steamID, 0);
+			page = (lastPage >= totalPages) ? 1 : lastPage + 1;
+			wlListPageState[steamID] = page;
+		}
 
 		IEnumerable<(int Index, WhitelistEntry Entry)> pageEntries = entries
 			.Select(static (entry, i) => (Index: i + 1, Entry: entry))
@@ -501,7 +511,9 @@ public sealed class TransferService {
 		}
 
 		if (page < totalPages) {
-			response.Append($"Use '{WlListCommand} {page + 1}' to see the next page.");
+			response.Append($"Run '{WlListCommand}' again to see the next page.");
+		} else {
+			response.Append($"End of list. Run '{WlListCommand}' again to start from the beginning.");
 		}
 
 		return requestingBot.Commands.FormatBotResponse(response.ToString().TrimEnd());
