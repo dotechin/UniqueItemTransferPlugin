@@ -18,6 +18,7 @@ public sealed class TransferService {
 	private const string WlClearCommand = "uniqwlclear";
 	private const int WlListPageSize = 20;
 	private static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(5);
+	private static readonly object WlConsoleBrowseLock = new();
 	private static readonly JsonSerializerOptions JsonOptions = new() {
 		WriteIndented = true,
 		Converters = { new JsonStringEnumConverter() }
@@ -499,30 +500,36 @@ public sealed class TransferService {
 	private static bool CanBrowseWhitelistInteractivelyInConsole() => Environment.UserInteractive && !Console.IsInputRedirected && !Console.IsOutputRedirected;
 
 	private string BrowseWhitelistInteractively(Bot requestingBot, IReadOnlyList<WhitelistEntry> entries, ulong steamID, int totalPages) {
-		int lastPage = wlListPageState.GetValueOrDefault(steamID, 0);
-		int page = (lastPage >= totalPages) ? 1 : lastPage + 1;
+		lock (WlConsoleBrowseLock) {
+			int lastPage = wlListPageState.GetValueOrDefault(steamID, 0);
+			int page = (lastPage >= totalPages) ? 1 : lastPage + 1;
+			bool interruptedByUser = false;
 
-		while (true) {
-			Console.WriteLine(requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: false)));
+			while (true) {
+				Console.WriteLine(requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: false)));
 
-			if (page >= totalPages) {
-				break;
+				if (page >= totalPages) {
+					break;
+				}
+
+				Console.Write("Press any key for next page (Esc to stop): ");
+				ConsoleKeyInfo key = Console.ReadKey(intercept: true);
+				Console.WriteLine();
+
+				if (key.Key == ConsoleKey.Escape) {
+					interruptedByUser = true;
+					break;
+				}
+
+				page++;
 			}
 
-			Console.Write("Press any key for next page (Esc to stop): ");
-			ConsoleKeyInfo key = Console.ReadKey(intercept: true);
-			Console.WriteLine();
+			wlListPageState[steamID] = page;
 
-			if (key.Key == ConsoleKey.Escape) {
-				break;
-			}
-
-			page++;
+			return interruptedByUser
+				? requestingBot.Commands.FormatBotResponse($"Interactive browsing stopped at page {page}/{totalPages}. Run '{WlListCommand}' again to continue.")
+				: requestingBot.Commands.FormatBotResponse($"Reached the end of the list at page {page}/{totalPages}. Run '{WlListCommand}' again to start from the beginning.");
 		}
-
-		wlListPageState[steamID] = page;
-
-		return requestingBot.Commands.FormatBotResponse($"Interactive browsing finished at page {page}/{totalPages}. Run '{WlListCommand}' again to continue.");
 	}
 
 	private static string BuildWhitelistPage(IReadOnlyList<WhitelistEntry> entries, int page, int totalPages, bool includeContinuationHint) {
