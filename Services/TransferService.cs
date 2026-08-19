@@ -41,6 +41,14 @@ public sealed class TransferService {
 		whitelistService = new WhitelistService(Path.Combine(pluginDirectory, "item-whitelist.json"));
 	}
 
+	public WhitelistConfiguration GetWhitelistConfiguration() => whitelistService.Load();
+
+	public WhitelistEntry? RemoveWhitelistEntryByIndex(int index) => whitelistService.RemoveByIndex(index);
+
+	public int RemoveWhitelistEntriesByClassId(ulong classId) => whitelistService.RemoveByClassID(classId);
+
+	public int ClearWhitelist() => whitelistService.Clear();
+
 	public async Task<string?> OnBotCommandAsync(Bot bot, EAccess access, string[] args, ulong steamID) {
 		ArgumentNullException.ThrowIfNull(bot);
 
