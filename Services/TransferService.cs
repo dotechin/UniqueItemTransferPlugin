@@ -35,7 +35,8 @@ public sealed class TransferService {
 	private readonly WhitelistService whitelistService;
 
 	private TransferService() {
-		string pluginDirectory = Path.GetDirectoryName(typeof(UniqueItemTransferPlugin).Assembly.Location) ?? AppContext.BaseDirectory;
+		string? pluginDirectory = Path.GetDirectoryName(typeof(UniqueItemTransferPlugin).Assembly.Location);
+		pluginDirectory = string.IsNullOrEmpty(pluginDirectory) ? AppContext.BaseDirectory : pluginDirectory;
 		Directory.CreateDirectory(pluginDirectory);
 		historyPath = Path.Combine(pluginDirectory, "transfer-history.json");
 		whitelistService = new WhitelistService(Path.Combine(pluginDirectory, "item-whitelist.json"));
@@ -417,7 +418,13 @@ public sealed class TransferService {
 				? new TransferHistory { Entries = history.Entries.OrderByDescending(static item => item.CompletedAtUtc).Take(100).ToList() }
 				: history;
 
-			File.WriteAllText(historyPath, JsonSerializer.Serialize(trimmedHistory, JsonOptions));
+			try {
+				File.WriteAllText(historyPath, JsonSerializer.Serialize(trimmedHistory, JsonOptions));
+			} catch (Exception exception) {
+				// Persisting history must never fail the caller: the transfer itself may have already
+				// completed successfully, so we log the failure instead of throwing it further up.
+				ASF.ArchiLogger.LogGenericWarningException(exception);
+			}
 		}
 	}
 
