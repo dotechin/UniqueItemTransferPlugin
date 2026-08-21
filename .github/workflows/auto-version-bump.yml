@@ -1,0 +1,75 @@
+name: Auto Version Bump
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  bump-version:
+    if: github.actor != 'github-actions[bot]' && !contains(github.event.head_commit.message, '[skip version bump]')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bump version in project file
+        id: bump
+        run: |
+          python <<'PY'
+          import pathlib
+          import re
+          import os
+
+          project = pathlib.Path("UniqueItemTransferPlugin.csproj")
+          content = project.read_text(encoding="utf-8")
+
+          version_match = re.search(r"<Version>(\d+)\.(\d+)\.(\d+)</Version>", content)
+          if version_match is None:
+              raise SystemExit("Version tag with semver format not found")
+
+          major, minor, patch = map(int, version_match.groups())
+          full_message = os.environ.get("COMMIT_MESSAGE", "").strip()
+          lines = full_message.splitlines()
+          subject = lines[0].strip() if lines else ""
+
+          has_breaking_footer = re.search(r"^BREAKING[- ]CHANGE:\s+", full_message, re.IGNORECASE | re.MULTILINE) is not None
+
+          if has_breaking_footer or re.search(r"^\w+(\(.+\))?!:", subject, re.IGNORECASE):
+              major += 1
+              minor = 0
+              patch = 0
+          elif re.search(r"^feat(\(.+\))?:", subject, re.IGNORECASE):
+              minor += 1
+              patch = 0
+          elif re.search(r"^(fix|perf|refactor|revert)(\(.+\))?:", subject, re.IGNORECASE):
+              patch += 1
+          else:
+              print("No version bump for this commit type.")
+              with pathlib.Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+                  output.write("new_version=\n")
+              raise SystemExit(0)
+
+          new_version = f"{major}.{minor}.{patch}"
+          new_assembly = f"{major}.{minor}.{patch}.0"
+
+          content = re.sub(r"<Version>\d+\.\d+\.\d+</Version>", f"<Version>{new_version}</Version>", content, count=1)
+          content = re.sub(r"<AssemblyVersion>\d+\.\d+\.\d+\.\d+</AssemblyVersion>", f"<AssemblyVersion>{new_assembly}</AssemblyVersion>", content, count=1)
+          content = re.sub(r"<FileVersion>\d+\.\d+\.\d+\.\d+</FileVersion>", f"<FileVersion>{new_assembly}</FileVersion>", content, count=1)
+
+          project.write_text(content, encoding="utf-8")
+          print(f"Bumping version to {new_version}")
+          with pathlib.Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+              output.write(f"new_version={new_version}\n")
+          PY
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+      - name: Commit version bump
+        run: |
+          if git diff --quiet; then
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add UniqueItemTransferPlugin.csproj
+          git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip version bump]"
+          git push
