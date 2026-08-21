@@ -1,4 +1,4 @@
-# UniqueItemTransferPlugin 0.1.0
+# UniqueItemTransferPlugin 1.2.2
 
 UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
@@ -61,7 +61,7 @@ New Bot Commands for Whitelist Management: add ASF commands that operate on the 
 
     uniqwladd <botname> [modes] — Scans a bot's current inventory and adds all matching items.
     uniqwlremove <realappid> <classid> — Removes a specific entry from the whitelist.
-    uniqwllist [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID.
+    uniqwlist [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID. Running with no arguments enters keypress browsing in console mode, and auto-advances to the next page in non-interactive contexts.
     uniqwlclear — Clears the entire whitelist (with confirmation step).
 
 Steam Inventory API Import via Command: add a command like uniqwlimport <botname> [modes] that:
@@ -100,32 +100,9 @@ When whitelist entries are matched, command output includes the number of unique
 
 ### External Steam inventory userscript
 
-This repository now includes a standalone userscript at `userscripts/steam-inventory-whitelist-export.user.js` for building whitelist entries from the Steam inventory page. The `userscripts` folder is kept self-contained so it can be promoted into its own standalone repository later.
+A companion userscript for building whitelist entries from the Steam inventory page is maintained in its own repository: [SteamInventoryWhitelistExport](https://github.com/dotechin/SteamInventoryWhitelistExport).
 
-What it does:
-
-- Detects eligible Steam Community inventory items for this plugin
-- Excludes non-tradable items, including event-style items, and point-shop items
-- Adds a whitelist checkbox overlay per visible item
-- Supports page-level select visible / clear visible actions
-- Exports:
-  - selected entries JSON array
-  - merge-ready entry fragment for an existing `entries` array
-  - full `item-whitelist.json` content
-
-Current limitations:
-
-- It only exports tradable items that map cleanly to `TradingCard`, `FoilTradingCard`, `ProfileBackground`, and `Emoticon`
-- It does not generate exact item-specific `uniqwladd` commands, because `uniqwladd` currently imports by inventory scan and mode rather than explicit item IDs
-- It does not write directly into the plugin directory; copy the exported JSON into `item-whitelist.json` manually
-
-Suggested workflow:
-
-1. Install the userscript in a userscript manager such as Tampermonkey.
-2. Open the Steam inventory page for the account whose items you want to whitelist.
-3. Use the per-item checkboxes or the panel's page-level actions.
-4. Copy the full file JSON or merge fragment.
-5. Paste the result into `item-whitelist.json` next to the plugin DLL.
+Install it in Tampermonkey or Greasemonkey, open a Steam inventory page, select the items you want to protect, and copy the exported JSON into `item-whitelist.json` next to the plugin DLL.
 
 
 ## Build
