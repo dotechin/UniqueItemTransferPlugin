@@ -1,4 +1,4 @@
-# UniqueItemTransferPlugin 0.1.0
+# UniqueItemTransferPlugin 1.2.2
 
 UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
@@ -61,7 +61,7 @@ New Bot Commands for Whitelist Management: add ASF commands that operate on the 
 
     uniqwladd <botname> [modes] — Scans a bot's current inventory and adds all matching items.
     uniqwlremove <realappid> <classid> — Removes a specific entry from the whitelist.
-    uniqwllist [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID.
+    uniqwlist [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID. Running with no arguments enters keypress browsing in console mode, and auto-advances to the next page in non-interactive contexts.
     uniqwlclear — Clears the entire whitelist (with confirmation step).
 
 Steam Inventory API Import via Command: add a command like uniqwlimport <botname> [modes] that:
