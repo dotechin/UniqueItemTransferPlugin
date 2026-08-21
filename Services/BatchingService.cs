@@ -4,7 +4,7 @@ using UniqueItemTransferPlugin.Models;
 namespace UniqueItemTransferPlugin.Services;
 
 public sealed class BatchingService {
-	public const ushort SafeBatchLimit = 390;
+	public const ushort SafeBatchLimit = 256;
 
 	public IReadOnlyList<TransferBatch> CreateBatches(IEnumerable<Asset> items) {
 		ArgumentNullException.ThrowIfNull(items);

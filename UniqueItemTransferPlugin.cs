@@ -14,7 +14,7 @@ public sealed class UniqueItemTransferPlugin : IPlugin, IBotCommand2 {
 	public string Name => nameof(UniqueItemTransferPlugin);
 
 	[JsonInclude]
-	public Version Version => typeof(UniqueItemTransferPlugin).Assembly.GetName().Version ?? new Version(7, 0, 0, 0);
+	public Version Version => typeof(UniqueItemTransferPlugin).Assembly.GetName().Version ?? new Version(0, 0, 0, 9);
 
 	public Task OnLoaded() {
 		ASF.ArchiLogger.LogGenericInfo($"{nameof(UniqueItemTransferPlugin)} v{Version} loaded.");
@@ -27,16 +27,6 @@ public sealed class UniqueItemTransferPlugin : IPlugin, IBotCommand2 {
 
 		if (!Enum.IsDefined(access)) {
 			throw new InvalidEnumArgumentException(nameof(access), (int) access, typeof(EAccess));
-		}
-
-		ArgumentException.ThrowIfNullOrEmpty(message);
-
-		if (args == null) {
-			throw new ArgumentNullException(nameof(args));
-		}
-
-		if (args.Length == 0) {
-			throw new ArgumentException("Args must not be empty.", nameof(args));
 		}
 
 		return TransferService.Instance.OnBotCommandAsync(bot, access, args, steamID);

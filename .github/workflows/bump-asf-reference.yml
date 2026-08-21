@@ -39,7 +39,7 @@ jobs:
               raise SystemExit('AsfVersion property not found')
 
           current = version_property.text
-          with urllib.request.urlopen('https://api.github.com/repos/JustArchiNET/ArchiSteamFarm/releases/latest') as response:
+          with urllib.request.urlopen('https://api.github.com/repos/JustArchiNET/ArchiSteamFarm/releases/latest', timeout=30) as response:
               latest = json.load(response)['tag_name'].lstrip('v')
 
           if not re.fullmatch(r'\d+\.\d+\.\d+\.\d+', latest):
@@ -56,9 +56,9 @@ jobs:
           archive_path = pathlib.Path('lib/ASF-generic.zip')
           archive_path.parent.mkdir(parents=True, exist_ok=True)
           download_url = f'https://github.com/JustArchiNET/ArchiSteamFarm/releases/download/{latest}/ASF-generic.zip'
-          urllib.request.urlretrieve(download_url, archive_path)
+          urllib.request.urlretrieve(download_url, archive_path)  # noqa: S310 — URL is constructed from a validated version string
           checksums_url = f'https://github.com/JustArchiNET/ArchiSteamFarm/releases/download/{latest}/SHA512SUMS'
-          with urllib.request.urlopen(checksums_url) as response:
+          with urllib.request.urlopen(checksums_url, timeout=30) as response:
               checksums = response.read().decode('utf-8')
 
           expected = None
@@ -91,7 +91,7 @@ jobs:
           else
             echo "updated=true" >> "$GITHUB_OUTPUT"
           fi
-      - uses: peter-evans/create-pull-request@v7
+      - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
         if: steps.result.outputs.updated == 'true'
         with:
           commit-message: chore: bump ASF reference
