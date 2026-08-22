@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Text;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using ArchiSteamFarm.Core;
 using ArchiSteamFarm.Steam;
 using UniqueItemTransferPlugin.Models;
@@ -19,10 +18,6 @@ public sealed class TransferService {
 	private const int WlListPageSize = 20;
 	private static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(5);
 	private static readonly object WlConsoleBrowseLock = new();
-	private static readonly JsonSerializerOptions JsonOptions = new() {
-		WriteIndented = true,
-		Converters = { new JsonStringEnumConverter() }
-	};
 
 	public static TransferService Instance { get; } = new();
 
@@ -423,7 +418,7 @@ public sealed class TransferService {
 				: history;
 
 			try {
-				File.WriteAllText(historyPath, JsonSerializer.Serialize(trimmedHistory, JsonOptions));
+				File.WriteAllText(historyPath, JsonSerializer.Serialize(trimmedHistory, JsonPersistence.JsonOptions));
 			} catch (Exception exception) {
 				// Persisting history must never fail the caller: the transfer itself may have already
 				// completed successfully, so we log the failure instead of throwing it further up.
@@ -635,7 +630,7 @@ public sealed class TransferService {
 
 		try {
 			string historyJson = File.ReadAllText(historyPath);
-			TransferHistory? history = JsonSerializer.Deserialize<TransferHistory>(historyJson, JsonOptions);
+			TransferHistory? history = JsonSerializer.Deserialize<TransferHistory>(historyJson, JsonPersistence.JsonOptions);
 
 			if (history != null) {
 				return history;
@@ -644,17 +639,8 @@ public sealed class TransferService {
 			throw new JsonException("Transfer history deserialized to null.");
 		} catch (Exception exception) {
 			ASF.ArchiLogger.LogGenericWarningException(exception);
-			BackupCorruptFile(historyPath);
+			JsonPersistence.BackupCorruptFile(historyPath);
 			return new TransferHistory();
-		}
-	}
-
-	private static void BackupCorruptFile(string path) {
-		try {
-			string backupPath = $"{path}.corrupt-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}";
-			File.Move(path, backupPath);
-		} catch (Exception backupException) {
-			ASF.ArchiLogger.LogGenericWarningException(backupException);
 		}
 	}
 }
