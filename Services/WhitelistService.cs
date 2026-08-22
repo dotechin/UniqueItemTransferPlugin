@@ -153,11 +153,27 @@ public sealed class WhitelistService {
 		}
 
 		try {
-			return JsonSerializer.Deserialize<WhitelistConfiguration>(File.ReadAllText(whitelistPath), JsonOptions) ?? new WhitelistConfiguration();
+			string whitelistJson = File.ReadAllText(whitelistPath);
+			WhitelistConfiguration? config = JsonSerializer.Deserialize<WhitelistConfiguration>(whitelistJson, JsonOptions);
+
+			if (config != null) {
+				return config;
+			}
+
+			throw new JsonException("Whitelist configuration deserialized to null.");
 		} catch (Exception exception) {
 			ASF.ArchiLogger.LogGenericWarningException(exception);
-
+			BackupCorruptFile(whitelistPath);
 			return new WhitelistConfiguration();
+		}
+	}
+
+	private static void BackupCorruptFile(string path) {
+		try {
+			string backupPath = $"{path}.corrupt-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}";
+			File.Move(path, backupPath);
+		} catch (Exception backupException) {
+			ASF.ArchiLogger.LogGenericWarningException(backupException);
 		}
 	}
 

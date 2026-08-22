@@ -45,6 +45,10 @@ public sealed class TransferService {
 	public async Task<string?> OnBotCommandAsync(Bot bot, EAccess access, string[] args, ulong steamID) {
 		ArgumentNullException.ThrowIfNull(bot);
 
+		if (args.Length == 0) {
+			return null;
+		}
+
 		PruneExpiredTransfers();
 
 		string command = args[0].ToLowerInvariant();
@@ -585,6 +589,10 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse("Argument must be a positive integer (index or ClassID).");
 		}
 
+		if (value == 0) {
+			return requestingBot.Commands.FormatBotResponse("Argument must be a positive integer (index or ClassID).");
+		}
+
 		// Values within int range are treated as 1-based list indexes.
 		// Values outside int range (large 64-bit numbers) are treated as ClassIDs.
 		if (value <= int.MaxValue) {
@@ -626,10 +634,27 @@ public sealed class TransferService {
 		}
 
 		try {
-			return JsonSerializer.Deserialize<TransferHistory>(File.ReadAllText(historyPath), JsonOptions) ?? new TransferHistory();
+			string historyJson = File.ReadAllText(historyPath);
+			TransferHistory? history = JsonSerializer.Deserialize<TransferHistory>(historyJson, JsonOptions);
+
+			if (history != null) {
+				return history;
+			}
+
+			throw new JsonException("Transfer history deserialized to null.");
 		} catch (Exception exception) {
 			ASF.ArchiLogger.LogGenericWarningException(exception);
+			BackupCorruptFile(historyPath);
 			return new TransferHistory();
+		}
+	}
+
+	private static void BackupCorruptFile(string path) {
+		try {
+			string backupPath = $"{path}.corrupt-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}-{Guid.NewGuid():N}";
+			File.Move(path, backupPath);
+		} catch (Exception backupException) {
+			ASF.ArchiLogger.LogGenericWarningException(backupException);
 		}
 	}
 }
