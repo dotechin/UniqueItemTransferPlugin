@@ -580,11 +580,7 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse($"Usage: {WlRemoveCommand} <index|classid>");
 		}
 
-		if (!ulong.TryParse(args[1], out ulong value)) {
-			return requestingBot.Commands.FormatBotResponse("Argument must be a positive integer (index or ClassID).");
-		}
-
-		if (value == 0) {
+		if (!ulong.TryParse(args[1], out ulong value) || (value == 0)) {
 			return requestingBot.Commands.FormatBotResponse("Argument must be a positive integer (index or ClassID).");
 		}
 
