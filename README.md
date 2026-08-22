@@ -1,4 +1,4 @@
-# UniqueItemTransferPlugin 1.2.2
+# UniqueItemTransferPlugin 1.2.3
 
 UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
@@ -60,15 +60,9 @@ Whitelist have been implemented to add the possibility of keeping items off the 
 New Bot Commands for Whitelist Management: add ASF commands that operate on the whitelist directly, so you never need to touch the JSON file:
 
     uniqwladd <botname> [modes] — Scans a bot's current inventory and adds all matching items.
-    uniqwlremove <realappid> <classid> — Removes a specific entry from the whitelist.
+    uniqwlremove <index|classid> — Removes a specific entry from the whitelist by 1-based index (from `uniqwlist`) or by full 64-bit ClassID; value must be greater than zero.
     uniqwlist [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID. Running with no arguments enters keypress browsing in console mode, and auto-advances to the next page in non-interactive contexts.
     uniqwlclear — Clears the entire whitelist (with confirmation step).
-
-Steam Inventory API Import via Command: add a command like uniqwlimport <botname> [modes] that:
-
-    Calls GetMyInventoryAsync on the specified bot (already done in InventoryService)
-    Extracts RealAppID, Type, and ClassID from each eligible asset
-    Deduplicates by AssetMatchKey and merges into the existing whitelist
 
 The plugin stores whitelist entries in `item-whitelist.json` next to the plugin DLL.
 
@@ -121,6 +115,7 @@ dotnet build -c Release
 - Trade offers are sent from the source bot to the destination bot using ASF inventory APIs
 - ASF 6.3.8.4 currently runs on .NET 10, so the plugin targets `net10.0`
 - Transfer history is saved to `transfer-history.json` in the plugin directory (alongside the plugin DLL), capped at 100 entries
+- If `transfer-history.json` or `item-whitelist.json` is invalid JSON, the plugin keeps a `.corrupt-*` backup and starts with an empty in-memory state
 
 ## License
 
