@@ -1,5 +1,4 @@
 using System.Text.Json;
-using System.Text.Json.Serialization;
 using ArchiSteamFarm.Core;
 using ArchiSteamFarm.Steam;
 using ArchiSteamFarm.Steam.Data;
@@ -8,11 +7,6 @@ using UniqueItemTransferPlugin.Models;
 namespace UniqueItemTransferPlugin.Services;
 
 public sealed class WhitelistService {
-	private static readonly JsonSerializerOptions JsonOptions = new() {
-		WriteIndented = true,
-		Converters = { new JsonStringEnumConverter() }
-	};
-
 	private readonly string whitelistPath;
 	private readonly object whitelistLock = new();
 
@@ -31,7 +25,7 @@ public sealed class WhitelistService {
 		ArgumentNullException.ThrowIfNull(config);
 
 		lock (whitelistLock) {
-			File.WriteAllText(whitelistPath, JsonSerializer.Serialize(config, JsonOptions));
+			File.WriteAllText(whitelistPath, JsonSerializer.Serialize(config, JsonPersistence.JsonOptions));
 		}
 	}
 
@@ -87,7 +81,7 @@ public sealed class WhitelistService {
 
 			if (added > 0) {
 				existing.Entries.AddRange(toAdd);
-				File.WriteAllText(whitelistPath, JsonSerializer.Serialize(existing, JsonOptions));
+				File.WriteAllText(whitelistPath, JsonSerializer.Serialize(existing, JsonPersistence.JsonOptions));
 			}
 		}
 
@@ -108,7 +102,7 @@ public sealed class WhitelistService {
 
 			WhitelistEntry removed = config.Entries[zeroBasedIndex];
 			config.Entries.RemoveAt(zeroBasedIndex);
-			File.WriteAllText(whitelistPath, JsonSerializer.Serialize(config, JsonOptions));
+			File.WriteAllText(whitelistPath, JsonSerializer.Serialize(config, JsonPersistence.JsonOptions));
 
 			return removed;
 		}
@@ -123,7 +117,7 @@ public sealed class WhitelistService {
 			int removed = config.Entries.RemoveAll(e => e.ClassID == classID);
 
 			if (removed > 0) {
-				File.WriteAllText(whitelistPath, JsonSerializer.Serialize(config, JsonOptions));
+				File.WriteAllText(whitelistPath, JsonSerializer.Serialize(config, JsonPersistence.JsonOptions));
 			}
 
 			return removed;
@@ -140,7 +134,7 @@ public sealed class WhitelistService {
 
 			if (count > 0) {
 				config.Entries.Clear();
-				File.WriteAllText(whitelistPath, JsonSerializer.Serialize(config, JsonOptions));
+				File.WriteAllText(whitelistPath, JsonSerializer.Serialize(config, JsonPersistence.JsonOptions));
 			}
 
 			return count;
@@ -153,10 +147,17 @@ public sealed class WhitelistService {
 		}
 
 		try {
-			return JsonSerializer.Deserialize<WhitelistConfiguration>(File.ReadAllText(whitelistPath), JsonOptions) ?? new WhitelistConfiguration();
+			string whitelistJson = File.ReadAllText(whitelistPath);
+			WhitelistConfiguration? config = JsonSerializer.Deserialize<WhitelistConfiguration>(whitelistJson, JsonPersistence.JsonOptions);
+
+			if (config != null) {
+				return config;
+			}
+
+			throw new JsonException("Whitelist configuration deserialized to null.");
 		} catch (Exception exception) {
 			ASF.ArchiLogger.LogGenericWarningException(exception);
-
+			JsonPersistence.BackupCorruptFile(whitelistPath);
 			return new WhitelistConfiguration();
 		}
 	}
