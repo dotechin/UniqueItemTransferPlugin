@@ -581,7 +581,7 @@ public sealed class TransferService {
 		}
 
 		if (!ulong.TryParse(args[1], out ulong value) || (value == 0)) {
-			return requestingBot.Commands.FormatBotResponse("Argument must be a positive integer (index or ClassID).");
+			return requestingBot.Commands.FormatBotResponse("Argument must be a whole number greater than zero (index or ClassID).");
 		}
 
 		// Values within int range are treated as 1-based list indexes.
