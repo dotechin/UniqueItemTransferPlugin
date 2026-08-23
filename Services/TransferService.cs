@@ -596,9 +596,10 @@ public sealed class TransferService {
 		}
 
 		int removedCount = whitelistService.RemoveByClassID(value);
+		string removedCountLabel = removedCount == 1 ? "entry" : "entries";
 
 		return removedCount > 0
-			? requestingBot.Commands.FormatBotResponse($"Removed {removedCount} whitelist entries with ClassID {value}.")
+			? requestingBot.Commands.FormatBotResponse($"Removed {removedCount} whitelist {removedCountLabel} with ClassID {value}.")
 			: requestingBot.Commands.FormatBotResponse($"No whitelist entry found with ClassID {value}.");
 	}
 
@@ -611,13 +612,15 @@ public sealed class TransferService {
 
 		if (!confirmed) {
 			int count = whitelistService.Load().Entries.Count;
+			string countLabel = count == 1 ? "entry" : "entries";
 
-			return requestingBot.Commands.FormatBotResponse($"This will remove all {count} whitelist entries. To confirm, run: {WlClearCommand} --confirm");
+			return requestingBot.Commands.FormatBotResponse($"This will remove all {count} whitelist {countLabel}. To confirm, run: {WlClearCommand} --confirm");
 		}
 
 		int removed = whitelistService.Clear();
+		string removedLabel = removed == 1 ? "entry" : "entries";
 
-		return requestingBot.Commands.FormatBotResponse($"Whitelist cleared. {removed} entries removed.");
+		return requestingBot.Commands.FormatBotResponse($"Whitelist cleared. {removed} {removedLabel} removed.");
 	}
 
 	private TransferHistory LoadHistoryUnsafe() {
