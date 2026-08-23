@@ -278,7 +278,7 @@ public sealed class TransferService {
 			.AppendLine($"- {ConfirmCommand} <transferId> - Confirm a pending transfer.")
 			.AppendLine($"- {HistoryCommand} - Show recent transfer history.")
 			.AppendLine($"- {WlAddCommand} <botname> [modes] - Add matching inventory items to the whitelist.")
-			.AppendLine($"- {WlListCommand} [page] - List whitelist entries (no page = interactive in console, auto-advance otherwise).")
+			.AppendLine($"- {WlListCommand} [page] - List whitelist entries. No page: auto-advance per caller (interactive key-browse in true console sessions).")
 			.AppendLine($"- {WlRemoveCommand} <index|classid> - Remove a whitelist entry.")
 			.AppendLine($"- {WlClearCommand} [--confirm] - Clear the whitelist.");
 
@@ -459,7 +459,8 @@ public sealed class TransferService {
 		try {
 			(int added, int skipped) = await whitelistService.AddFromInventoryAsync(targetBot, allowedTypes).ConfigureAwait(false);
 
-			return requestingBot.Commands.FormatBotResponse($"Whitelist updated from {targetBot.BotName}'s inventory: {added} tradable item(s) added, {skipped} already present. Non-tradable items were excluded.");
+			string addedLabel = added == 1 ? "entry" : "entries";
+			return requestingBot.Commands.FormatBotResponse($"Whitelist updated from {targetBot.BotName}'s inventory: {added} {addedLabel} added, {skipped} already present among matching tradable items.");
 		} catch (Exception exception) {
 			targetBot.ArchiLogger.LogGenericWarningException(exception);
 
@@ -562,9 +563,9 @@ public sealed class TransferService {
 
 		if (includeContinuationHint) {
 			if (page < totalPages) {
-				response.Append($"Run '{WlListCommand}' again to see the next page.");
+				response.Append($"Next: run '{WlListCommand}' for page {page + 1}/{totalPages}.");
 			} else {
-				response.Append($"End of list. Run '{WlListCommand}' again to start from the beginning.");
+				response.Append($"End of list. Run '{WlListCommand}' to restart at page 1/{totalPages}.");
 			}
 		}
 
@@ -595,9 +596,10 @@ public sealed class TransferService {
 		}
 
 		int removedCount = whitelistService.RemoveByClassID(value);
+		string removedCountLabel = removedCount == 1 ? "entry" : "entries";
 
 		return removedCount > 0
-			? requestingBot.Commands.FormatBotResponse($"Removed {removedCount} whitelist entry/entries with ClassID {value}.")
+			? requestingBot.Commands.FormatBotResponse($"Removed {removedCount} whitelist {removedCountLabel} with ClassID {value}.")
 			: requestingBot.Commands.FormatBotResponse($"No whitelist entry found with ClassID {value}.");
 	}
 
@@ -610,13 +612,15 @@ public sealed class TransferService {
 
 		if (!confirmed) {
 			int count = whitelistService.Load().Entries.Count;
+			string countLabel = count == 1 ? "entry" : "entries";
 
-			return requestingBot.Commands.FormatBotResponse($"This will remove all {count} whitelist entry/entries. To confirm, run: {WlClearCommand} --confirm");
+			return requestingBot.Commands.FormatBotResponse($"This will remove all {count} whitelist {countLabel}. To confirm, run: {WlClearCommand} --confirm");
 		}
 
 		int removed = whitelistService.Clear();
+		string removedLabel = removed == 1 ? "entry" : "entries";
 
-		return requestingBot.Commands.FormatBotResponse($"Whitelist cleared. {removed} entry/entries removed.");
+		return requestingBot.Commands.FormatBotResponse($"Whitelist cleared. {removed} {removedLabel} removed.");
 	}
 
 	private TransferHistory LoadHistoryUnsafe() {

@@ -1,4 +1,4 @@
-# UniqueItemTransferPlugin 1.2.3
+# UniqueItemTransferPlugin 1.2.4
 
 UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
@@ -53,16 +53,37 @@ Shows the latest completed, failed, and dry-run transfer records.
 
 ### Whitelist
 
-Whitelist have been implemented to add the possibility of keeping items off the automatic trades in spite of the criteria.
+The whitelist protects specific items from transfer, even if they match transfer filters.
 
 ## Configuration
 
-New Bot Commands for Whitelist Management: add ASF commands that operate on the whitelist directly, so you never need to touch the JSON file:
+Whitelist management commands:
 
-    uniqwladd <botname> [modes] — Scans a bot's current inventory and adds all matching items.
-    uniqwlremove <index|classid> — Removes a specific entry from the whitelist by 1-based index (from `uniqwlist`) or by full 64-bit ClassID; value must be greater than zero.
-    uniqwlist [page] — Lists current whitelist entries with their index, name, RealAppID, Type, and ClassID. Running with no arguments enters keypress browsing in console mode, and auto-advances to the next page in non-interactive contexts.
-    uniqwlclear — Clears the entire whitelist (with confirmation step).
+- `uniqwladd <botname> [modes]` — scans a bot inventory and adds matching tradable items as whitelist entries.
+- `uniqwlist [page]` — lists whitelist entries with index, name, RealAppID, Type, and ClassID.
+- `uniqwlremove <index|classid>` — removes one entry by 1-based index (from `uniqwlist`) or by full 64-bit ClassID.
+- `uniqwlclear [--confirm]` — clears the entire whitelist (confirmation required).
+
+`uniqwlist` behavior:
+- `uniqwlist <page>`: explicit page mode. Page must be a positive integer; values above the last page are clamped to the last page.
+- `uniqwlist` (no page): stateful quick-browse mode. Each caller advances to the next page and wraps to page 1 after the last page.
+- Interactive keypress browsing is used only in true interactive console sessions; otherwise no-arg calls use stateful quick-browse mode.
+- Responses always include a clear next action (`run 'uniqwlist' for page X/Y` or `restart at page 1/Y`).
+
+Examples:
+
+```text
+uniqwlist
+Whitelist (47 total, page 1/3):
+  [1] Item Name | appid=730 | type=TradingCard | classid=1234567890
+  ...
+Next: run 'uniqwlist' for page 2/3.
+
+uniqwlist 999
+Whitelist (47 total, page 3/3):
+  ...
+End of list. Run 'uniqwlist' to restart at page 1/3.
+```
 
 The plugin stores whitelist entries in `item-whitelist.json` next to the plugin DLL.
 
