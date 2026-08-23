@@ -2,6 +2,13 @@
 
 All notable changes to UniqueItemTransferPlugin will be documented here.
 
+## [1.2.4] — 2026-08-23
+
+### Changed
+- Refined whitelist-manager UX around `uniqwlist`, including clearer paging continuation messages and help text.
+- Standardized whitelist command response wording for `uniqwladd`, `uniqwlremove`, and `uniqwlclear`.
+- Updated README whitelist documentation with explicit paging and quick-browse behavior.
+
 ## [1.2.3] — 2026-08-22
 
 ### Added
