@@ -278,7 +278,11 @@ public sealed class TransferService {
 			.AppendLine($"- {ConfirmCommand} <transferId> - Confirm a pending transfer.")
 			.AppendLine($"- {HistoryCommand} - Show recent transfer history.")
 			.AppendLine($"- {WlAddCommand} <botname> [modes] - Add matching inventory items to the whitelist.")
-			.AppendLine($"- {WlListCommand} [page] - List whitelist entries. No page: auto-advance per caller (interactive key-browse in true console sessions).")
+			.AppendLine($"- {WlListCommand} [page|select <index>] - List whitelist entries.")
+			.AppendLine($"    No args (console): interactive arrow-key browser. Up/Down: move cursor. Enter/D/Delete: remove highlighted entry. Esc/Q: quit.")
+			.AppendLine($"    No args (chat/IPC): auto-advance pages.")
+			.AppendLine($"    page: jump to a specific page number.")
+			.AppendLine($"    select <index>: show full details for the entry at <index>.")
 			.AppendLine($"- {WlRemoveCommand} <index|classid> - Remove a whitelist entry.")
 			.AppendLine($"- {WlClearCommand} [--confirm] - Clear the whitelist.");
 
@@ -482,11 +486,29 @@ public sealed class TransferService {
 		}
 
 		int totalPages = (int) Math.Ceiling(entries.Count / (double) WlListPageSize);
+
+		// Sub-command: uniqwlist select <index>
+		if (args.Count >= 2 && args[1].Equals("select", StringComparison.OrdinalIgnoreCase)) {
+			if (args.Count < 3 || !int.TryParse(args[2], out int selectIndex) || selectIndex < 1) {
+				return requestingBot.Commands.FormatBotResponse($"Usage: {WlListCommand} select <index>");
+			}
+
+			if (selectIndex > entries.Count) {
+				return requestingBot.Commands.FormatBotResponse($"No whitelist entry at index {selectIndex}. Valid range: 1–{entries.Count}.");
+			}
+
+			WhitelistEntry selected = entries[selectIndex - 1];
+
+			return requestingBot.Commands.FormatBotResponse(
+				$"[{selectIndex}] {selected.Name ?? "(no name)"} | appid={selected.RealAppID} | type={selected.Type} | classid={selected.ClassID}" +
+				$"\nTo remove: {WlRemoveCommand} {selectIndex}");
+		}
+
 		int page;
 
 		if (args.Count >= 2) {
 			if (!int.TryParse(args[1], out page) || (page < 1)) {
-				return requestingBot.Commands.FormatBotResponse("Page must be a positive integer.");
+				return requestingBot.Commands.FormatBotResponse($"Usage: {WlListCommand} [page|select <index>]. Page must be a positive integer.");
 			}
 
 			page = Math.Min(page, totalPages);
@@ -501,45 +523,144 @@ public sealed class TransferService {
 			wlListPageState[steamID] = page;
 		}
 
-		return requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: true));
+		return requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: true, cursorIndex: null));
 	}
 
 	private static bool CanBrowseWhitelistInteractivelyInConsole() => Environment.UserInteractive && !Console.IsInputRedirected && !Console.IsOutputRedirected;
 
-	private string BrowseWhitelistInteractively(Bot requestingBot, IReadOnlyList<WhitelistEntry> entries, ulong steamID, int totalPages) {
+	private string BrowseWhitelistInteractively(Bot requestingBot, List<WhitelistEntry> entries, ulong steamID, int totalPages) {
 		lock (WlConsoleBrowseLock) {
 			int lastPage = wlListPageState.GetValueOrDefault(steamID, 0);
 			int page = (lastPage >= totalPages) ? 1 : lastPage + 1;
-			bool interruptedByUser = false;
 
-			while (true) {
-				Console.WriteLine(requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: false)));
+			// cursorIndex is a 1-based absolute position across the entire list.
+			int cursorIndex = (page - 1) * WlListPageSize + 1;
 
-				if (page >= totalPages) {
-					break;
-				}
-
-				Console.Write("Press any key for next page (Esc to stop): ");
-				ConsoleKeyInfo key = Console.ReadKey(intercept: true);
-				Console.WriteLine();
-
-				if (key.Key == ConsoleKey.Escape) {
-					interruptedByUser = true;
-					break;
-				}
-
-				page++;
+			void Render() {
+				Console.Clear();
+				Console.WriteLine(requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: false, cursorIndex: cursorIndex)));
+				Console.WriteLine("  Arrow keys: move  |  Enter / D / Del: remove selected  |  Esc / Q: quit");
 			}
 
-			wlListPageState[steamID] = page;
+			Render();
 
-			return interruptedByUser
-				? requestingBot.Commands.FormatBotResponse($"Interactive browsing stopped at page {page}/{totalPages}. Run '{WlListCommand}' again to continue.")
-				: requestingBot.Commands.FormatBotResponse($"Reached the end of the list at page {page}/{totalPages}. Run '{WlListCommand}' again to start from the beginning.");
+			while (true) {
+				ConsoleKeyInfo key = Console.ReadKey(intercept: true);
+
+				if (key.Key is ConsoleKey.Escape || key.KeyChar is 'q' or 'Q') {
+					wlListPageState[steamID] = page;
+
+					Console.WriteLine();
+
+					return requestingBot.Commands.FormatBotResponse($"Interactive browsing stopped at page {page}/{totalPages}. Run '{WlListCommand}' again to continue.");
+				}
+
+				if (key.Key == ConsoleKey.UpArrow) {
+					if (cursorIndex > 1) {
+						cursorIndex--;
+
+						int newPage = (int) Math.Ceiling(cursorIndex / (double) WlListPageSize);
+
+						if (newPage != page) {
+							page = newPage;
+						}
+
+						Render();
+					}
+
+					continue;
+				}
+
+				if (key.Key == ConsoleKey.DownArrow) {
+					if (cursorIndex < entries.Count) {
+						cursorIndex++;
+
+						int newPage = (int) Math.Ceiling(cursorIndex / (double) WlListPageSize);
+
+						if (newPage != page) {
+							page = newPage;
+						}
+
+						Render();
+					}
+
+					continue;
+				}
+
+				if (key.Key == ConsoleKey.PageUp) {
+					if (page > 1) {
+						page--;
+						cursorIndex = (page - 1) * WlListPageSize + 1;
+						Render();
+					}
+
+					continue;
+				}
+
+				if (key.Key == ConsoleKey.PageDown) {
+					if (page < totalPages) {
+						page++;
+						cursorIndex = (page - 1) * WlListPageSize + 1;
+						Render();
+					}
+
+					continue;
+				}
+
+				bool isRemoveKey = key.Key is ConsoleKey.Enter or ConsoleKey.Delete || key.KeyChar is 'd' or 'D';
+
+				if (isRemoveKey) {
+					WhitelistEntry selectedEntry = entries[cursorIndex - 1];
+
+					Console.WriteLine();
+					Console.Write($"  Remove [{cursorIndex}] {selectedEntry.Name ?? "(no name)"}? [Y/N]: ");
+					ConsoleKeyInfo confirmKey = Console.ReadKey(intercept: true);
+					Console.WriteLine();
+
+					if (confirmKey.KeyChar is 'y' or 'Y') {
+						WhitelistEntry? removed = whitelistService.RemoveByIndex(cursorIndex);
+
+						if (removed != null) {
+							Console.WriteLine(requestingBot.Commands.FormatBotResponse($"Removed [{cursorIndex}] {removed.Name ?? "(no name)"} | appid={removed.RealAppID} | type={removed.Type} | classid={removed.ClassID}."));
+
+							// Reload entries after removal and update cursor position.
+							entries = whitelistService.Load().Entries;
+
+							if (entries.Count == 0) {
+								wlListPageState.TryRemove(steamID, out _);
+
+								return requestingBot.Commands.FormatBotResponse("Whitelist is now empty.");
+							}
+
+							totalPages = (int) Math.Ceiling(entries.Count / (double) WlListPageSize);
+							cursorIndex = Math.Min(cursorIndex, entries.Count);
+							page = (int) Math.Ceiling(cursorIndex / (double) WlListPageSize);
+							page = Math.Clamp(page, 1, totalPages);
+						}
+					}
+
+					Render();
+
+					continue;
+				}
+
+				// Any other key: advance to next page if possible, otherwise exit.
+				if (page < totalPages) {
+					page++;
+					cursorIndex = (page - 1) * WlListPageSize + 1;
+					Render();
+				} else {
+					wlListPageState[steamID] = page;
+
+					Console.WriteLine();
+
+					return requestingBot.Commands.FormatBotResponse($"Reached the end of the list at page {page}/{totalPages}. Run '{WlListCommand}' again to start from the beginning.");
+				}
+			}
 		}
 	}
 
-	private static string BuildWhitelistPage(IReadOnlyList<WhitelistEntry> entries, int page, int totalPages, bool includeContinuationHint) {
+	private static string BuildWhitelistPage(IReadOnlyList<WhitelistEntry> entries, int page, int totalPages, bool includeContinuationHint, int? cursorIndex) {
 		IEnumerable<(int Index, WhitelistEntry Entry)> pageEntries = entries
 			.Select(static (entry, i) => (Index: i + 1, Entry: entry))
 			.Skip((page - 1) * WlListPageSize)
@@ -549,7 +670,9 @@ public sealed class TransferService {
 		response.AppendLine($"Whitelist ({entries.Count} total, page {page}/{totalPages}):");
 
 		foreach ((int index, WhitelistEntry entry) in pageEntries) {
-			response.Append("  [")
+			bool isCursor = cursorIndex.HasValue && (cursorIndex.Value == index);
+
+			response.Append(isCursor ? "> [" : "  [")
 				.Append(index)
 				.Append("] ")
 				.Append(entry.Name ?? "(no name)")
