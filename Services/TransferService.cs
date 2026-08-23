@@ -459,7 +459,8 @@ public sealed class TransferService {
 		try {
 			(int added, int skipped) = await whitelistService.AddFromInventoryAsync(targetBot, allowedTypes).ConfigureAwait(false);
 
-			return requestingBot.Commands.FormatBotResponse($"Whitelist updated from {targetBot.BotName}'s inventory: {added} entry/entries added, {skipped} already present among matching tradable items.");
+			string addedLabel = added == 1 ? "entry" : "entries";
+			return requestingBot.Commands.FormatBotResponse($"Whitelist updated from {targetBot.BotName}'s inventory: {added} {addedLabel} added, {skipped} already present among matching tradable items.");
 		} catch (Exception exception) {
 			targetBot.ArchiLogger.LogGenericWarningException(exception);
 
