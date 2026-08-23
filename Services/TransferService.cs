@@ -279,7 +279,7 @@ public sealed class TransferService {
 			.AppendLine($"- {HistoryCommand} - Show recent transfer history.")
 			.AppendLine($"- {WlAddCommand} <botname> [modes] - Add matching inventory items to the whitelist.")
 			.AppendLine($"- {WlListCommand} [page|select <index>] - List whitelist entries.")
-			.AppendLine($"    No args (console): interactive arrow-key browser. Up/Down: move cursor. Enter/D/Delete: remove highlighted entry. Esc/Q: quit.")
+			.AppendLine($"    No args (console): interactive browser. Up/Down: move cursor. Space: select/deselect. Enter/D/Delete: remove selected entries. Esc/Q: quit.")
 			.AppendLine($"    No args (chat/IPC): auto-advance pages.")
 			.AppendLine($"    page: jump to a specific page number.")
 			.AppendLine($"    select <index>: show full details for the entry at <index>.")
@@ -535,11 +535,12 @@ public sealed class TransferService {
 
 			// cursorIndex is a 1-based absolute position across the entire list.
 			int cursorIndex = (page - 1) * WlListPageSize + 1;
+			HashSet<int> selectedIndexes = [];
 
 			void Render() {
 				Console.Clear();
-				Console.WriteLine(requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: false, cursorIndex: cursorIndex)));
-				Console.WriteLine("  Arrow keys: move  |  Enter / D / Del: remove selected  |  Esc / Q: quit");
+				Console.WriteLine(requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: false, cursorIndex: cursorIndex, selectedIndexes)));
+				Console.WriteLine("  Arrow keys: move  |  Space: toggle  |  Enter / D / Del: remove selected  |  Esc / Q: quit");
 			}
 
 			Render();
@@ -587,6 +588,15 @@ public sealed class TransferService {
 					continue;
 				}
 
+				if (key.Key == ConsoleKey.Spacebar) {
+					if (!selectedIndexes.Add(cursorIndex)) {
+						selectedIndexes.Remove(cursorIndex);
+					}
+
+					Render();
+					continue;
+				}
+
 				if (key.Key == ConsoleKey.PageUp) {
 					if (page > 1) {
 						page--;
@@ -610,21 +620,31 @@ public sealed class TransferService {
 				bool isRemoveKey = key.Key is ConsoleKey.Enter or ConsoleKey.Delete || key.KeyChar is 'd' or 'D';
 
 				if (isRemoveKey) {
-					WhitelistEntry selectedEntry = entries[cursorIndex - 1];
+					List<int> indexesToRemove = selectedIndexes.Count > 0 ? [.. selectedIndexes.OrderBy(static index => index)] : [cursorIndex];
+					WhitelistEntry selectedEntry = entries[indexesToRemove[0] - 1];
+					string prompt = indexesToRemove.Count == 1
+						? $"  Remove [{indexesToRemove[0]}] {selectedEntry.Name ?? "(no name)"}? [Y/N]: "
+						: $"  Remove {indexesToRemove.Count} selected whitelist entries? [Y/N]: ";
 
 					Console.WriteLine();
-					Console.Write($"  Remove [{cursorIndex}] {selectedEntry.Name ?? "(no name)"}? [Y/N]: ");
+					Console.Write(prompt);
 					ConsoleKeyInfo confirmKey = Console.ReadKey(intercept: true);
 					Console.WriteLine();
 
 					if (confirmKey.KeyChar is 'y' or 'Y') {
-						WhitelistEntry? removed = whitelistService.RemoveByIndex(cursorIndex);
+						List<(int Index, WhitelistEntry Entry)> removedEntries = whitelistService.RemoveByIndexes(indexesToRemove);
 
-						if (removed != null) {
-							Console.WriteLine(requestingBot.Commands.FormatBotResponse($"Removed [{cursorIndex}] {removed.Name ?? "(no name)"} | appid={removed.RealAppID} | type={removed.Type} | classid={removed.ClassID}."));
+						if (removedEntries.Count > 0) {
+							if (removedEntries.Count == 1) {
+								(int removedIndex, WhitelistEntry removedEntry) = removedEntries[0];
+								Console.WriteLine(requestingBot.Commands.FormatBotResponse($"Removed [{removedIndex}] {removedEntry.Name ?? "(no name)"} | appid={removedEntry.RealAppID} | type={removedEntry.Type} | classid={removedEntry.ClassID}."));
+							} else {
+								Console.WriteLine(requestingBot.Commands.FormatBotResponse($"Removed {removedEntries.Count} whitelist entries: {string.Join(", ", removedEntries.Select(static removed => removed.Index))}."));
+							}
 
 							// Reload entries after removal and update cursor position.
 							entries = whitelistService.Load().Entries;
+							selectedIndexes.Clear();
 
 							if (entries.Count == 0) {
 								wlListPageState.TryRemove(steamID, out _);
@@ -633,7 +653,7 @@ public sealed class TransferService {
 							}
 
 							totalPages = (int) Math.Ceiling(entries.Count / (double) WlListPageSize);
-							cursorIndex = Math.Min(cursorIndex, entries.Count);
+							cursorIndex = Math.Min(indexesToRemove.Min(), entries.Count);
 							page = (int) Math.Ceiling(cursorIndex / (double) WlListPageSize);
 							page = Math.Clamp(page, 1, totalPages);
 						}
@@ -660,7 +680,7 @@ public sealed class TransferService {
 		}
 	}
 
-	private static string BuildWhitelistPage(IReadOnlyList<WhitelistEntry> entries, int page, int totalPages, bool includeContinuationHint, int? cursorIndex) {
+	private static string BuildWhitelistPage(IReadOnlyList<WhitelistEntry> entries, int page, int totalPages, bool includeContinuationHint, int? cursorIndex, IReadOnlySet<int>? selectedIndexes = null) {
 		IEnumerable<(int Index, WhitelistEntry Entry)> pageEntries = entries
 			.Select(static (entry, i) => (Index: i + 1, Entry: entry))
 			.Skip((page - 1) * WlListPageSize)
@@ -671,8 +691,10 @@ public sealed class TransferService {
 
 		foreach ((int index, WhitelistEntry entry) in pageEntries) {
 			bool isCursor = cursorIndex.HasValue && (cursorIndex.Value == index);
+			bool isSelected = selectedIndexes?.Contains(index) == true;
 
-			response.Append(isCursor ? "> [" : "  [")
+			response.Append(isCursor ? "> " : "  ")
+				.Append(isSelected ? "[x] [" : "[ ] [")
 				.Append(index)
 				.Append("] ")
 				.Append(entry.Name ?? "(no name)")

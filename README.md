@@ -68,6 +68,7 @@ Whitelist management commands:
 - `uniqwlist <page>`: explicit page mode. Page must be a positive integer; values above the last page are clamped to the last page.
 - `uniqwlist` (no page): stateful quick-browse mode. Each caller advances to the next page and wraps to page 1 after the last page.
 - Interactive keypress browsing is used only in true interactive console sessions; otherwise no-arg calls use stateful quick-browse mode.
+- In interactive console mode, each row shows a checkbox. Use `Space` to select or deselect entries, then `Enter`, `D`, or `Delete` to remove the current entry or all selected entries after the existing `Y/N` confirmation prompt.
 - Responses always include a clear next action (`run 'uniqwlist' for page X/Y` or `restart at page 1/Y`).
 
 Examples:

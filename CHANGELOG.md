@@ -6,6 +6,7 @@ All notable changes to UniqueItemTransferPlugin will be documented here.
 
 ### Changed
 - Refined whitelist-manager UX around `uniqwlist`, including clearer paging continuation messages and help text.
+- Added checkbox-style interactive `uniqwlist` selection with `Space` to toggle entries before the existing `Y/N` removal confirmation.
 - Standardized whitelist command response wording for `uniqwladd`, `uniqwlremove`, and `uniqwlclear`.
 - Updated README whitelist documentation with explicit paging and quick-browse behavior.
 
