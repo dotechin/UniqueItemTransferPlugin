@@ -109,6 +109,50 @@ public sealed class WhitelistService {
 	}
 
 	/// <summary>
+	/// Removes multiple entries by 1-based indexes. Returns removed entries in ascending original index order.
+	/// Invalid indexes are ignored.
+	/// </summary>
+	public List<(int Index, WhitelistEntry Entry)> RemoveByIndexes(IEnumerable<int> indexes) {
+		ArgumentNullException.ThrowIfNull(indexes);
+
+		lock (whitelistLock) {
+			WhitelistConfiguration config = LoadUnsafe();
+			List<int> orderedIndexes = indexes
+				.Where(static index => index > 0)
+				.Distinct()
+				.OrderBy(static index => index)
+				.ToList();
+
+			if (orderedIndexes.Count == 0) {
+				return [];
+			}
+
+			List<(int Index, WhitelistEntry Entry)> removedEntries = [];
+
+			for (int i = orderedIndexes.Count - 1; i >= 0; i--) {
+				int zeroBasedIndex = orderedIndexes[i] - 1;
+
+				if ((zeroBasedIndex < 0) || (zeroBasedIndex >= config.Entries.Count)) {
+					continue;
+				}
+
+				WhitelistEntry removed = config.Entries[zeroBasedIndex];
+				config.Entries.RemoveAt(zeroBasedIndex);
+				removedEntries.Add((orderedIndexes[i], removed));
+			}
+
+			if (removedEntries.Count == 0) {
+				return [];
+			}
+
+			File.WriteAllText(whitelistPath, JsonSerializer.Serialize(config, JsonPersistence.JsonOptions));
+			removedEntries.Reverse();
+
+			return removedEntries;
+		}
+	}
+
+	/// <summary>
 	/// Removes all entries whose ClassID matches. Returns the number removed.
 	/// </summary>
 	public int RemoveByClassID(ulong classID) {
