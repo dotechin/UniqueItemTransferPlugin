@@ -653,7 +653,7 @@ public sealed class TransferService {
 							}
 
 							totalPages = (int) Math.Ceiling(entries.Count / (double) WlListPageSize);
-							cursorIndex = Math.Min(indexesToRemove.Min(), entries.Count);
+							cursorIndex = Math.Min(indexesToRemove[0], entries.Count);
 							page = (int) Math.Ceiling(cursorIndex / (double) WlListPageSize);
 							page = Math.Clamp(page, 1, totalPages);
 						}
@@ -691,7 +691,7 @@ public sealed class TransferService {
 
 		foreach ((int index, WhitelistEntry entry) in pageEntries) {
 			bool isCursor = cursorIndex.HasValue && (cursorIndex.Value == index);
-			bool isSelected = selectedIndexes?.Contains(index) == true;
+			bool isSelected = (selectedIndexes != null) && selectedIndexes.Contains(index);
 
 			response.Append(isCursor ? "> " : "  ")
 				.Append(isSelected ? "[x] [" : "[ ] [")
