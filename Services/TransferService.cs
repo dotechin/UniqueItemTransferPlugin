@@ -813,13 +813,13 @@ public sealed class TransferService {
 					continue;
 				}
 
-				bool isApplyKey = key.Key is ConsoleKey.Enter or ConsoleKey.Delete || key.KeyChar is 'd' or 'D';
+				bool isApplyKey = key.Key is ConsoleKey.Enter or ConsoleKey.Delete or ConsoleKey.D;
 
 				if (isApplyKey) {
 					HashSet<AssetMatchKey> desiredKeys = [
 						.. selectedIndexes.Select(index => inventoryEntries[index - 1].ToKey())
 					];
-					int changedCount = selectedIndexes.Except(initialSelectedIndexes).Count() + initialSelectedIndexes.Except(selectedIndexes).Count();
+					int changedCount = GetSelectionChangeCount(selectedIndexes, initialSelectedIndexes);
 
 					Console.WriteLine();
 					Console.Write(changedCount == 0
@@ -843,16 +843,6 @@ public sealed class TransferService {
 
 					Render();
 					continue;
-				}
-
-				if (page < totalPages) {
-					page++;
-					cursorIndex = (page - 1) * WlListPageSize + 1;
-					Render();
-				} else {
-					wlListPageState[steamID] = page;
-					Console.WriteLine();
-					return requestingBot.Commands.FormatBotResponse($"Reached the end of the inventory list at page {page}/{totalPages} for {botName}. Run '{WlListCommand} inventory {botName}' again to restart.");
 				}
 			}
 		}
@@ -910,7 +900,7 @@ public sealed class TransferService {
 			.Skip((page - 1) * WlListPageSize)
 			.Take(WlListPageSize);
 
-		int changedCount = selectedIndexes.Except(initialSelectedIndexes).Count() + initialSelectedIndexes.Except(selectedIndexes).Count();
+		int changedCount = GetSelectionChangeCount(selectedIndexes, initialSelectedIndexes);
 		StringBuilder response = new();
 		response.Append("Inventory whitelist sync (")
 			.Append(botName)
@@ -945,6 +935,9 @@ public sealed class TransferService {
 
 		return response.ToString().TrimEnd();
 	}
+
+	private static int GetSelectionChangeCount(IReadOnlySet<int> currentSelection, IReadOnlySet<int> baselineSelection) =>
+		currentSelection.Count(index => !baselineSelection.Contains(index)) + baselineSelection.Count(index => !currentSelection.Contains(index));
 
 	private string? HandleWlRemove(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
 		if (access < EAccess.Master) {
