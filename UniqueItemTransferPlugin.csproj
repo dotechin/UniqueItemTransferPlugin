@@ -6,9 +6,9 @@
     <OutputType>Library</OutputType>
     <AssemblyName>UniqueItemTransferPlugin</AssemblyName>
     <RootNamespace>UniqueItemTransferPlugin</RootNamespace>
-    <Version>1.2.4</Version>
-    <AssemblyVersion>1.2.4.0</AssemblyVersion>
-    <FileVersion>1.2.4.0</FileVersion>
+    <Version>1.2.5</Version>
+    <AssemblyVersion>1.2.5.0</AssemblyVersion>
+    <FileVersion>1.2.5.0</FileVersion>
     <Authors>dotechin</Authors>
     <Description>ASF plugin for transferring only unique Steam Community items between bots.</Description>
     <PackageId>UniqueItemTransferPlugin</PackageId>

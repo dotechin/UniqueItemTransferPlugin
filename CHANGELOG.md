@@ -2,6 +2,15 @@
 
 All notable changes to UniqueItemTransferPlugin will be documented here.
 
+## [1.2.5] — 2026-08-24
+
+### Added
+- Added `uniqwlist inventory <botname> [modes]` interactive mode to scan Steam inventory entries and toggle whitelist inclusion with `Space`.
+
+### Changed
+- `uniqwlist` can now apply inventory-driven whitelist sync updates (add/remove) to `item-whitelist.json` after `Y/N` confirmation.
+- Updated help text and README whitelist documentation for inventory-backed toggle/sync workflow.
+
 ## [1.2.4] — 2026-08-23
 
 ### Changed
