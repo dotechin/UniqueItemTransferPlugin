@@ -654,7 +654,7 @@ public sealed class TransferService {
 		}
 	}
 
-	private bool TryGetActiveInventorySession(ulong steamID, out InventoryWhitelistSession? session) {
+	private bool TryGetActiveInventorySession(ulong steamID, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out InventoryWhitelistSession? session) {
 		if (!inventoryWhitelistSessions.TryGetValue(steamID, out session) || (session == null)) {
 			return false;
 		}
