@@ -61,6 +61,7 @@ Whitelist management commands:
 
 - `uniqwladd <botname> [modes]` — scans a bot inventory and adds matching tradable items as whitelist entries.
 - `uniqwlist [page]` — lists whitelist entries with index, name, RealAppID, Type, and ClassID.
+- `uniqwlist inventory <botname> [modes]` — scans a bot inventory and opens interactive whitelist sync mode (console only).
 - `uniqwlremove <index|classid>` — removes one entry by 1-based index (from `uniqwlist`) or by full 64-bit ClassID.
 - `uniqwlclear [--confirm]` — clears the entire whitelist (confirmation required).
 
@@ -69,6 +70,7 @@ Whitelist management commands:
 - `uniqwlist` (no page): stateful quick-browse mode. Each caller advances to the next page and wraps to page 1 after the last page.
 - Interactive keypress browsing is used only in true interactive console sessions; otherwise no-arg calls use stateful quick-browse mode.
 - In interactive console mode, each row shows a checkbox. Use `Space` to select or deselect entries, then `Enter`, `D`, or `Delete` to remove the current entry or all selected entries after the existing `Y/N` confirmation prompt.
+- `uniqwlist inventory <botname> [modes]`: in interactive console mode, opens inventory-backed checklist where `[x]` means "will be whitelisted" and `[ ]` means "will be removed from whitelist" for the scanned inventory set. Toggle with `Space`, then apply with `Enter`, `D`, or `Delete` (with `Y/N` confirmation).
 - Responses always include a clear next action (`run 'uniqwlist' for page X/Y` or `restart at page 1/Y`).
 
 Examples:
