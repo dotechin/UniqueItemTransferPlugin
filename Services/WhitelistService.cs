@@ -37,30 +37,9 @@ public sealed class WhitelistService {
 		ArgumentNullException.ThrowIfNull(bot);
 		ArgumentNullException.ThrowIfNull(allowedTypes);
 
-		Dictionary<AssetMatchKey, WhitelistEntry> newEntries = [];
+		List<WhitelistEntry> inventoryEntries = await LoadEligibleInventoryEntriesAsync(bot, allowedTypes).ConfigureAwait(false);
 
-		await foreach (Asset asset in bot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID, tradableOnly: true)) {
-			if (!IsEligibleAsset(asset, allowedTypes)) {
-				continue;
-			}
-
-			AssetMatchKey key = AssetMatchKey.FromAsset(asset);
-
-			if (newEntries.ContainsKey(key)) {
-				continue;
-			}
-
-			string? name = asset.Description?.Name ?? asset.Description?.MarketName;
-
-			newEntries[key] = new WhitelistEntry {
-				RealAppID = asset.RealAppID,
-				Type = asset.Type,
-				ClassID = asset.ClassID,
-				Name = name
-			};
-		}
-
-		if (newEntries.Count == 0) {
+		if (inventoryEntries.Count == 0) {
 			return (0, 0);
 		}
 
@@ -71,13 +50,12 @@ public sealed class WhitelistService {
 			WhitelistConfiguration existing = LoadUnsafe();
 			HashSet<AssetMatchKey> existingKeys = [.. existing.Entries.Select(static e => e.ToKey())];
 
-			List<WhitelistEntry> toAdd = newEntries
-				.Where(kvp => !existingKeys.Contains(kvp.Key))
-				.Select(static kvp => kvp.Value)
+			List<WhitelistEntry> toAdd = inventoryEntries
+				.Where(entry => !existingKeys.Contains(entry.ToKey()))
 				.ToList();
 
 			added = toAdd.Count;
-			skipped = newEntries.Count - added;
+			skipped = inventoryEntries.Count - added;
 
 			if (added > 0) {
 				existing.Entries.AddRange(toAdd);
@@ -86,6 +64,61 @@ public sealed class WhitelistService {
 		}
 
 		return (added, skipped);
+	}
+
+	/// <summary>
+	/// Scans the bot's Steam inventory and returns unique eligible entries.
+	/// </summary>
+	public Task<List<WhitelistEntry>> LoadInventoryEntriesAsync(Bot bot, IReadOnlySet<EAssetType> allowedTypes) {
+		ArgumentNullException.ThrowIfNull(bot);
+		ArgumentNullException.ThrowIfNull(allowedTypes);
+
+		return LoadEligibleInventoryEntriesAsync(bot, allowedTypes);
+	}
+
+	/// <summary>
+	/// Synchronizes whitelist state for provided inventory entries.
+	/// Entries selected in <paramref name="desiredWhitelistKeys"/> will be present in whitelist; deselected entries will be removed.
+	/// </summary>
+	public (int Added, int Removed) SyncInventorySelection(IEnumerable<WhitelistEntry> inventoryEntries, IReadOnlySet<AssetMatchKey> desiredWhitelistKeys) {
+		ArgumentNullException.ThrowIfNull(inventoryEntries);
+		ArgumentNullException.ThrowIfNull(desiredWhitelistKeys);
+
+		lock (whitelistLock) {
+			WhitelistConfiguration existing = LoadUnsafe();
+			Dictionary<AssetMatchKey, WhitelistEntry> inventoryByKey = inventoryEntries
+				.GroupBy(static entry => entry.ToKey())
+				.ToDictionary(static group => group.Key, static group => group.First());
+
+			if (inventoryByKey.Count == 0) {
+				return (0, 0);
+			}
+
+			HashSet<AssetMatchKey> inventoryKeys = [.. inventoryByKey.Keys];
+			HashSet<AssetMatchKey> existingKeys = [.. existing.Entries.Select(static entry => entry.ToKey())];
+			int added = 0;
+
+			foreach ((AssetMatchKey key, WhitelistEntry inventoryEntry) in inventoryByKey) {
+				if (!desiredWhitelistKeys.Contains(key) || existingKeys.Contains(key)) {
+					continue;
+				}
+
+				existing.Entries.Add(inventoryEntry);
+				existingKeys.Add(key);
+				added++;
+			}
+
+			int removed = existing.Entries.RemoveAll(entry => {
+				AssetMatchKey key = entry.ToKey();
+				return inventoryKeys.Contains(key) && !desiredWhitelistKeys.Contains(key);
+			});
+
+			if ((added > 0) || (removed > 0)) {
+				File.WriteAllText(whitelistPath, JsonSerializer.Serialize(existing, JsonPersistence.JsonOptions));
+			}
+
+			return (added, removed);
+		}
 	}
 
 	/// <summary>
@@ -204,6 +237,38 @@ public sealed class WhitelistService {
 			JsonPersistence.BackupCorruptFile(whitelistPath);
 			return new WhitelistConfiguration();
 		}
+	}
+
+	private static async Task<List<WhitelistEntry>> LoadEligibleInventoryEntriesAsync(Bot bot, IReadOnlySet<EAssetType> allowedTypes) {
+		Dictionary<AssetMatchKey, WhitelistEntry> entriesByKey = [];
+
+		await foreach (Asset asset in bot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID, tradableOnly: true)) {
+			if (!IsEligibleAsset(asset, allowedTypes)) {
+				continue;
+			}
+
+			AssetMatchKey key = AssetMatchKey.FromAsset(asset);
+
+			if (entriesByKey.ContainsKey(key)) {
+				continue;
+			}
+
+			string? name = asset.Description?.Name ?? asset.Description?.MarketName;
+
+			entriesByKey[key] = new WhitelistEntry {
+				RealAppID = asset.RealAppID,
+				Type = asset.Type,
+				ClassID = asset.ClassID,
+				Name = name
+			};
+		}
+
+		return entriesByKey.Values
+			.OrderBy(static entry => entry.RealAppID)
+			.ThenBy(static entry => entry.Type)
+			.ThenBy(static entry => entry.Name ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+			.ThenBy(static entry => entry.ClassID)
+			.ToList();
 	}
 
 	private static bool IsEligibleAsset(Asset asset, IReadOnlySet<EAssetType> allowedTypes) =>

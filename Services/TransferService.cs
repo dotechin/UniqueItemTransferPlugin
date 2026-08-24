@@ -57,7 +57,7 @@ public sealed class TransferService {
 			ConfirmCommand => await HandleConfirmationAsync(bot, access, args).ConfigureAwait(false),
 			HistoryCommand => HandleHistory(bot, access),
 			WlAddCommand => await HandleWlAddAsync(bot, access, args).ConfigureAwait(false),
-			WlListCommand => HandleWlList(bot, access, args, steamID),
+			WlListCommand => await HandleWlListAsync(bot, access, args, steamID).ConfigureAwait(false),
 			WlRemoveCommand => HandleWlRemove(bot, access, args),
 			WlClearCommand => HandleWlClear(bot, access, args),
 			_ => null
@@ -278,11 +278,12 @@ public sealed class TransferService {
 			.AppendLine($"- {ConfirmCommand} <transferId> - Confirm a pending transfer.")
 			.AppendLine($"- {HistoryCommand} - Show recent transfer history.")
 			.AppendLine($"- {WlAddCommand} <botname> [modes] - Add matching inventory items to the whitelist.")
-			.AppendLine($"- {WlListCommand} [page|select <index>] - List whitelist entries.")
+			.AppendLine($"- {WlListCommand} [page|select <index>|inventory <botname> [modes]] - List or sync whitelist entries.")
 			.AppendLine($"    No args (console): interactive browser. Up/Down: move cursor. Space: select/deselect. Enter/D/Delete: remove selected entries. Esc/Q: quit.")
 			.AppendLine($"    No args (chat/IPC): auto-advance pages.")
 			.AppendLine($"    page: jump to a specific page number.")
 			.AppendLine($"    select <index>: show full details for the entry at <index>.")
+			.AppendLine($"    inventory <botname> [modes]: interactive inventory-backed whitelist toggle/apply mode.")
 			.AppendLine($"- {WlRemoveCommand} <index|classid> - Remove a whitelist entry.")
 			.AppendLine($"- {WlClearCommand} [--confirm] - Clear the whitelist.");
 
@@ -472,9 +473,13 @@ public sealed class TransferService {
 		}
 	}
 
-	private string? HandleWlList(Bot requestingBot, EAccess access, IReadOnlyList<string> args, ulong steamID) {
+	private async Task<string?> HandleWlListAsync(Bot requestingBot, EAccess access, IReadOnlyList<string> args, ulong steamID) {
 		if (access < EAccess.Master) {
 			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {WlListCommand} requires Master access.") : null;
+		}
+
+		if (args.Count >= 2 && args[1].Equals("inventory", StringComparison.OrdinalIgnoreCase)) {
+			return await HandleWlListInventoryAsync(requestingBot, args, steamID).ConfigureAwait(false);
 		}
 
 		List<WhitelistEntry> entries = whitelistService.Load().Entries;
@@ -524,6 +529,45 @@ public sealed class TransferService {
 		}
 
 		return requestingBot.Commands.FormatBotResponse(BuildWhitelistPage(entries, page, totalPages, includeContinuationHint: true, cursorIndex: null));
+	}
+
+	private async Task<string> HandleWlListInventoryAsync(Bot requestingBot, IReadOnlyList<string> args, ulong steamID) {
+		if (args.Count < 3) {
+			return requestingBot.Commands.FormatBotResponse($"Usage: {WlListCommand} inventory <botname> [modes]");
+		}
+
+		if (!TryGetBot(args[2], out Bot? targetBot) || (targetBot == null)) {
+			return requestingBot.Commands.FormatBotResponse($"Bot '{args[2]}' was not found.");
+		}
+
+		if (!targetBot.IsConnectedAndLoggedOn) {
+			return requestingBot.Commands.FormatBotResponse($"Bot '{targetBot.BotName}' must be connected and logged on.");
+		}
+
+		List<string> modeTokens = args.Skip(3).ToList();
+
+		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out List<string> normalizedModes, out List<string> invalidModes)) {
+			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, backgrounds, emoticons.");
+		}
+
+		List<WhitelistEntry> inventoryEntries;
+
+		try {
+			inventoryEntries = await whitelistService.LoadInventoryEntriesAsync(targetBot, allowedTypes).ConfigureAwait(false);
+		} catch (Exception exception) {
+			targetBot.ArchiLogger.LogGenericWarningException(exception);
+			return requestingBot.Commands.FormatBotResponse($"Failed to scan {targetBot.BotName}'s inventory: {exception.Message}");
+		}
+
+		if (inventoryEntries.Count == 0) {
+			return requestingBot.Commands.FormatBotResponse($"No matching tradable inventory items found for {targetBot.BotName} using modes: {string.Join(", ", normalizedModes)}.");
+		}
+
+		if (!CanBrowseWhitelistInteractivelyInConsole()) {
+			return requestingBot.Commands.FormatBotResponse("Inventory whitelist toggle mode requires an interactive console session.");
+		}
+
+		return BrowseInventoryWhitelistInteractively(requestingBot, inventoryEntries, steamID, targetBot.BotName, normalizedModes);
 	}
 
 	private static bool CanBrowseWhitelistInteractivelyInConsole() => Environment.UserInteractive && !Console.IsInputRedirected && !Console.IsOutputRedirected;
@@ -659,6 +703,140 @@ public sealed class TransferService {
 						}
 					}
 
+					private string BrowseInventoryWhitelistInteractively(Bot requestingBot, List<WhitelistEntry> inventoryEntries, ulong steamID, string botName, IReadOnlyList<string> modes) {
+						lock (WlConsoleBrowseLock) {
+							int totalPages = (int) Math.Ceiling(inventoryEntries.Count / (double) WlListPageSize);
+							int page = 1;
+							int cursorIndex = 1;
+
+							HashSet<AssetMatchKey> currentWhitelistKeys = [.. whitelistService.Load().Entries.Select(static entry => entry.ToKey())];
+							HashSet<int> selectedIndexes = [
+								.. inventoryEntries
+									.Select(static (entry, i) => (Entry: entry, Index: i + 1))
+									.Where(tuple => currentWhitelistKeys.Contains(tuple.Entry.ToKey()))
+									.Select(static tuple => tuple.Index)
+							];
+							HashSet<int> initialSelectedIndexes = [.. selectedIndexes];
+
+							void Render() {
+								Console.Clear();
+								Console.WriteLine(requestingBot.Commands.FormatBotResponse(BuildInventoryWhitelistPage(inventoryEntries, page, totalPages, cursorIndex, selectedIndexes, initialSelectedIndexes, botName, modes)));
+								Console.WriteLine("  Arrow keys: move  |  Space: toggle  |  Enter / D / Del: apply  |  Esc / Q: quit");
+							}
+
+							Render();
+
+							while (true) {
+								ConsoleKeyInfo key = Console.ReadKey(intercept: true);
+
+								if (key.Key is ConsoleKey.Escape || key.KeyChar is 'q' or 'Q') {
+									wlListPageState[steamID] = page;
+									Console.WriteLine();
+									return requestingBot.Commands.FormatBotResponse($"Inventory whitelist browsing stopped at page {page}/{totalPages} for {botName}.");
+								}
+
+								if (key.Key == ConsoleKey.UpArrow) {
+									if (cursorIndex > 1) {
+										cursorIndex--;
+										int newPage = (int) Math.Ceiling(cursorIndex / (double) WlListPageSize);
+										if (newPage != page) {
+											page = newPage;
+										}
+
+										Render();
+									}
+
+									continue;
+								}
+
+								if (key.Key == ConsoleKey.DownArrow) {
+									if (cursorIndex < inventoryEntries.Count) {
+										cursorIndex++;
+										int newPage = (int) Math.Ceiling(cursorIndex / (double) WlListPageSize);
+										if (newPage != page) {
+											page = newPage;
+										}
+
+										Render();
+									}
+
+									continue;
+								}
+
+								if (key.Key == ConsoleKey.Spacebar) {
+									if (!selectedIndexes.Add(cursorIndex)) {
+										selectedIndexes.Remove(cursorIndex);
+									}
+
+									Render();
+									continue;
+								}
+
+								if (key.Key == ConsoleKey.PageUp) {
+									if (page > 1) {
+										page--;
+										cursorIndex = (page - 1) * WlListPageSize + 1;
+										Render();
+									}
+
+									continue;
+								}
+
+								if (key.Key == ConsoleKey.PageDown) {
+									if (page < totalPages) {
+										page++;
+										cursorIndex = (page - 1) * WlListPageSize + 1;
+										Render();
+									}
+
+									continue;
+								}
+
+								bool isApplyKey = key.Key is ConsoleKey.Enter or ConsoleKey.Delete || key.KeyChar is 'd' or 'D';
+
+								if (isApplyKey) {
+									HashSet<AssetMatchKey> desiredKeys = [
+										.. selectedIndexes.Select(index => inventoryEntries[index - 1].ToKey())
+									];
+									int changedCount = selectedIndexes.Except(initialSelectedIndexes).Count() + initialSelectedIndexes.Except(selectedIndexes).Count();
+
+									Console.WriteLine();
+									Console.Write(changedCount == 0
+										? "  No changes detected. Re-apply current whitelist state? [Y/N]: "
+										: $"  Apply {changedCount} whitelist change(s) for {botName} inventory selection? [Y/N]: ");
+									ConsoleKeyInfo confirmKey = Console.ReadKey(intercept: true);
+									Console.WriteLine();
+
+									if (confirmKey.KeyChar is 'y' or 'Y') {
+										(int added, int removed) = whitelistService.SyncInventorySelection(inventoryEntries, desiredKeys);
+										currentWhitelistKeys = [.. whitelistService.Load().Entries.Select(static entry => entry.ToKey())];
+										selectedIndexes = [
+											.. inventoryEntries
+												.Select(static (entry, i) => (Entry: entry, Index: i + 1))
+												.Where(tuple => currentWhitelistKeys.Contains(tuple.Entry.ToKey()))
+												.Select(static tuple => tuple.Index)
+										];
+										initialSelectedIndexes = [.. selectedIndexes];
+										Console.WriteLine(requestingBot.Commands.FormatBotResponse($"Whitelist synced from {botName} inventory: {added} added, {removed} removed."));
+									}
+
+									Render();
+									continue;
+								}
+
+								if (page < totalPages) {
+									page++;
+									cursorIndex = (page - 1) * WlListPageSize + 1;
+									Render();
+								} else {
+									wlListPageState[steamID] = page;
+									Console.WriteLine();
+									return requestingBot.Commands.FormatBotResponse($"Reached the end of the inventory list at page {page}/{totalPages} for {botName}. Run '{WlListCommand} inventory {botName}' again to restart.");
+								}
+							}
+						}
+					}
+
 					Render();
 
 					continue;
@@ -713,6 +891,57 @@ public sealed class TransferService {
 				response.Append($"End of list. Run '{WlListCommand}' to restart at page 1/{totalPages}.");
 			}
 		}
+
+		return response.ToString().TrimEnd();
+	}
+
+	private static string BuildInventoryWhitelistPage(
+		IReadOnlyList<WhitelistEntry> entries,
+		int page,
+		int totalPages,
+		int cursorIndex,
+		IReadOnlySet<int> selectedIndexes,
+		IReadOnlySet<int> initialSelectedIndexes,
+		string botName,
+		IReadOnlyList<string> modes
+	) {
+		IEnumerable<(int Index, WhitelistEntry Entry)> pageEntries = entries
+			.Select(static (entry, i) => (Index: i + 1, Entry: entry))
+			.Skip((page - 1) * WlListPageSize)
+			.Take(WlListPageSize);
+
+		int changedCount = selectedIndexes.Except(initialSelectedIndexes).Count() + initialSelectedIndexes.Except(selectedIndexes).Count();
+		StringBuilder response = new();
+		response.Append("Inventory whitelist sync (")
+			.Append(botName)
+			.Append(" | modes=")
+			.Append(string.Join(",", modes))
+			.AppendLine("):")
+			.AppendLine($"  {entries.Count} total, page {page}/{totalPages}, selected={selectedIndexes.Count}, pendingChanges={changedCount}");
+
+		foreach ((int index, WhitelistEntry entry) in pageEntries) {
+			bool isCursor = cursorIndex == index;
+			bool isSelected = selectedIndexes.Contains(index);
+			bool wasSelected = initialSelectedIndexes.Contains(index);
+			string delta = isSelected == wasSelected ? " " : "*";
+
+			response.Append(isCursor ? "> " : "  ")
+				.Append(isSelected ? "[x] [" : "[ ] [")
+				.Append(index)
+				.Append("] ")
+				.Append(delta)
+				.Append(' ')
+				.Append(entry.Name ?? "(no name)")
+				.Append(" | appid=")
+				.Append(entry.RealAppID)
+				.Append(" | type=")
+				.Append(entry.Type)
+				.Append(" | classid=")
+				.AppendLine(entry.ClassID.ToString());
+		}
+
+		response.AppendLine("Legend: [x]=will be whitelisted, [ ]=will be removed from whitelist, *=changed");
+		response.Append("Press Enter/D/Delete to apply changes to item-whitelist.json.");
 
 		return response.ToString().TrimEnd();
 	}
