@@ -30,8 +30,8 @@
 ## Build
 
 ```bash
-dotnet restore /home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/AsfInventoryCachePlugin/AsfInventoryCachePlugin.csproj
-dotnet build -c Release /home/runner/work/UniqueItemTransferPlugin/UniqueItemTransferPlugin/AsfInventoryCachePlugin/AsfInventoryCachePlugin.csproj
+dotnet restore AsfInventoryCachePlugin/AsfInventoryCachePlugin.csproj
+dotnet build -c Release AsfInventoryCachePlugin/AsfInventoryCachePlugin.csproj
 ```
 
 ## Next suggested steps

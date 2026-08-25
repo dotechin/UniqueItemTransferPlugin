@@ -9,6 +9,8 @@ namespace AsfInventoryCachePlugin.Services;
 internal sealed class InventorySnapshotService {
 	private readonly object cacheLock = new();
 	private readonly string cachePath;
+	private InventoryCacheConfiguration? cache;
+	private bool cacheLoaded;
 
 	internal InventorySnapshotService(string cachePath) {
 		ArgumentException.ThrowIfNullOrEmpty(cachePath);
@@ -19,14 +21,15 @@ internal sealed class InventorySnapshotService {
 		ArgumentNullException.ThrowIfNull(bot);
 
 		Dictionary<(uint RealAppID, EAssetType Type, ulong ClassID), InventorySnapshotEntry> aggregates = [];
-		int totalTradableAssets = 0;
+		long totalTradableAssets = 0;
 
 		await foreach (Asset asset in bot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID, tradableOnly: true)) {
 			if ((asset.AppID != Asset.SteamAppID) || (asset.ContextID != Asset.SteamCommunityContextID) || !asset.Tradable || asset.IsSteamPointsShopItem || (asset.RealAppID == 0)) {
 				continue;
 			}
 
-			totalTradableAssets++;
+			long amount = asset.Amount;
+			totalTradableAssets += amount;
 			(uint RealAppID, EAssetType Type, ulong ClassID) key = (asset.RealAppID, asset.Type, asset.ClassID);
 			string? name = asset.Description?.Name ?? asset.Description?.MarketName;
 
@@ -36,7 +39,7 @@ internal sealed class InventorySnapshotService {
 					Type = existing.Type,
 					ClassID = existing.ClassID,
 					Name = existing.Name ?? name,
-					Count = existing.Count + 1
+					Count = existing.Count + amount
 				};
 				continue;
 			}
@@ -45,7 +48,7 @@ internal sealed class InventorySnapshotService {
 				RealAppID = asset.RealAppID,
 				Type = asset.Type.ToString(),
 				ClassID = asset.ClassID,
-				Count = 1,
+				Count = amount,
 				Name = name
 			};
 		}
@@ -126,7 +129,7 @@ internal sealed class InventorySnapshotService {
 		}
 	}
 
-	internal IReadOnlyList<(string BotName, DateTimeOffset UpdatedAtUtc, int UniqueAssetKeys, int TotalTradableAssets)> GetStats() {
+	internal IReadOnlyList<(string BotName, DateTimeOffset UpdatedAtUtc, int UniqueAssetKeys, long TotalTradableAssets)> GetStats() {
 		lock (cacheLock) {
 			return LoadUnsafe().Entries
 				.OrderBy(static entry => entry.BotName, StringComparer.OrdinalIgnoreCase)
@@ -136,23 +139,49 @@ internal sealed class InventorySnapshotService {
 	}
 
 	private InventoryCacheConfiguration LoadUnsafe() {
+		if (cacheLoaded && (cache != null)) {
+			return cache;
+		}
+
 		if (!File.Exists(cachePath)) {
-			return new InventoryCacheConfiguration();
+			cache = new InventoryCacheConfiguration();
+			cacheLoaded = true;
+			return cache;
 		}
 
 		try {
 			string json = File.ReadAllText(cachePath);
 			InventoryCacheConfiguration? config = JsonSerializer.Deserialize<InventoryCacheConfiguration>(json, JsonPersistence.JsonOptions);
-			return config ?? new InventoryCacheConfiguration();
+			cache = config ?? new InventoryCacheConfiguration();
+			cacheLoaded = true;
+			return cache;
 		} catch (Exception exception) {
 			ASF.ArchiLogger.LogGenericWarningException(exception);
 			JsonPersistence.BackupCorruptFile(cachePath);
-			return new InventoryCacheConfiguration();
+			cache = new InventoryCacheConfiguration();
+			cacheLoaded = true;
+			return cache;
 		}
 	}
 
 	private void SaveUnsafe(InventoryCacheConfiguration config) {
 		string json = JsonSerializer.Serialize(config, JsonPersistence.JsonOptions);
-		File.WriteAllText(cachePath, json);
+		string tempPath = $"{cachePath}.{Guid.NewGuid():N}.tmp";
+		try {
+			File.WriteAllText(tempPath, json);
+			File.Move(tempPath, cachePath, overwrite: true);
+			cache = config;
+			cacheLoaded = true;
+		} catch {
+			try {
+				if (File.Exists(tempPath)) {
+					File.Delete(tempPath);
+				}
+			} catch (Exception exception) {
+				ASF.ArchiLogger.LogGenericWarningException(exception);
+			}
+
+			throw;
+		}
 	}
 }

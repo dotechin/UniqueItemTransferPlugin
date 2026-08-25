@@ -6,6 +6,7 @@ namespace AsfInventoryCachePlugin.Services;
 
 internal sealed class CommandService {
 	private const string RootCommand = "invcache";
+	private const int MaxStatsDisplayCount = 20;
 	private static readonly TimeSpan DefaultMaxAge = TimeSpan.FromMinutes(30);
 
 	internal static CommandService Instance { get; } = new();
@@ -29,12 +30,12 @@ internal sealed class CommandService {
 			return null;
 		}
 
-		if (IsHelpRequest(args)) {
-			return requestingBot.Commands.FormatBotResponse(BuildHelpMessage());
-		}
-
 		if (access < EAccess.Master) {
 			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"{RootCommand} requires Master access.") : null;
+		}
+
+		if (IsHelpRequest(args)) {
+			return requestingBot.Commands.FormatBotResponse(BuildHelpMessage());
 		}
 
 		if (args.Length < 2) {
@@ -121,7 +122,7 @@ internal sealed class CommandService {
 	}
 
 	private string HandleStats(Bot requestingBot) {
-		IReadOnlyList<(string BotName, DateTimeOffset UpdatedAtUtc, int UniqueAssetKeys, int TotalTradableAssets)> stats = snapshotService.GetStats();
+		IReadOnlyList<(string BotName, DateTimeOffset UpdatedAtUtc, int UniqueAssetKeys, long TotalTradableAssets)> stats = snapshotService.GetStats();
 
 		if (stats.Count == 0) {
 			return requestingBot.Commands.FormatBotResponse("Inventory cache is empty.");
@@ -130,7 +131,7 @@ internal sealed class CommandService {
 		StringBuilder response = new();
 		response.AppendLine($"Inventory cache entries: {stats.Count}");
 
-		foreach ((string botName, DateTimeOffset updatedAtUtc, int uniqueAssetKeys, int totalTradableAssets) in stats.Take(20)) {
+		foreach ((string botName, DateTimeOffset updatedAtUtc, int uniqueAssetKeys, long totalTradableAssets) in stats.Take(MaxStatsDisplayCount)) {
 			response.AppendLine($"- {botName}: {totalTradableAssets} assets, {uniqueAssetKeys} keys, updated {updatedAtUtc:yyyy-MM-dd HH:mm:ss} UTC");
 		}
 
@@ -155,8 +156,16 @@ internal sealed class CommandService {
 		return response.ToString().TrimEnd();
 	}
 
-	private static bool IsHelpRequest(IReadOnlyList<string> args) =>
-		args.Any(arg => arg.Equals("--help", StringComparison.OrdinalIgnoreCase) || arg.Equals("-h", StringComparison.OrdinalIgnoreCase) || arg.Equals("help", StringComparison.OrdinalIgnoreCase));
+	private static bool IsHelpRequest(IReadOnlyList<string> args) {
+		if (args.Count <= 1) {
+			return true;
+		}
+
+		string candidate = args[1];
+		return candidate.Equals("--help", StringComparison.OrdinalIgnoreCase)
+			|| candidate.Equals("-h", StringComparison.OrdinalIgnoreCase)
+			|| candidate.Equals("help", StringComparison.OrdinalIgnoreCase);
+	}
 
 	private static TimeSpan? ParseMaxAge(string? rawValue) {
 		if (string.IsNullOrWhiteSpace(rawValue) || !int.TryParse(rawValue, out int minutes) || (minutes <= 0)) {
@@ -167,7 +176,18 @@ internal sealed class CommandService {
 	}
 
 	private static bool TryGetBot(string botName, out Bot? bot) {
-		bot = Bot.Bots?.Values.FirstOrDefault(existing => existing.BotName.Equals(botName, StringComparison.OrdinalIgnoreCase));
+		bot = null;
+		IReadOnlyDictionary<string, Bot>? bots = Bot.BotsReadOnly;
+
+		if ((bots == null) || (bots.Count == 0)) {
+			return false;
+		}
+
+		if (bots.TryGetValue(botName, out bot)) {
+			return true;
+		}
+
+		bot = bots.Values.FirstOrDefault(existing => existing.BotName.Equals(botName, StringComparison.OrdinalIgnoreCase));
 		return bot != null;
 	}
 
