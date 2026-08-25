@@ -1,4 +1,4 @@
-# UniqueItemTransferPlugin 1.2.5
+# UniqueItemTransferPlugin 1.2.6
 
 UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
@@ -53,48 +53,97 @@ Shows the latest completed, failed, and dry-run transfer records.
 
 ### Whitelist
 
-The whitelist protects specific items from transfer, even if they match transfer filters.
+The whitelist protects specific items from transfer, even if they match transfer filters. Items listed in `item-whitelist.json` are skipped before transfer batches are built, for both dry runs and real trades.
 
-## Configuration
+## Whitelist Manager
 
-Whitelist management commands:
+All whitelist commands require **Master** access. Use `--help` or `-h` with any command to print the full command list.
 
-- `uniqwladd <botname> [modes]` — scans a bot inventory and adds matching tradable items as whitelist entries.
-- `uniqwlist [page]` — lists whitelist entries with index, name, RealAppID, Type, and ClassID.
-- `uniqwlist inventory <botname> [modes]` — scans a bot inventory and starts whitelist sync mode (interactive in a real console, session-based in IPC/headless use).
-- `uniqwlremove <index|classid>` — removes one entry by 1-based index (from `uniqwlist`) or by full 64-bit ClassID.
-- `uniqwlclear [--confirm]` — clears the entire whitelist (confirmation required).
+### Command reference
 
-`uniqwlist` behavior:
-- `uniqwlist <page>`: explicit page mode. Page must be a positive integer; values above the last page are clamped to the last page.
-- `uniqwlist` (no page): stateful quick-browse mode. Each caller advances to the next page and wraps to page 1 after the last page.
-- Interactive keypress browsing is used only in true interactive console sessions; otherwise no-arg calls use stateful quick-browse mode.
-- In interactive console mode, each row shows a checkbox. Use `Space` to select or deselect entries, then `Enter`, `D`, or `Delete` to remove the current entry or all selected entries after the existing `Y/N` confirmation prompt.
-- `uniqwlist inventory <botname> [modes]`: in interactive console mode, opens inventory-backed checklist where `[x]` means "will be whitelisted" and `[ ]` means "will be removed from whitelist" for the scanned inventory set. Toggle with `Space`, then apply with `Enter`, `D`, or `Delete` (with `Y/N` confirmation).
-- In IPC/headless mode, `uniqwlist inventory <botname> [modes]` starts a per-caller session instead. Use `uniqwlist inventory show` (or `current`) to reprint the page, `next` / `prev` to navigate, `toggle <index>` to change one entry, `apply` to write the selection to `item-whitelist.json`, and `cancel` to discard the session.
-- IPC/headless inventory sessions expire automatically after 5 minutes of inactivity. Starting a new `uniqwlist inventory <botname> [modes]` session replaces the previous one for that caller.
-- Responses always include a clear next action (`run 'uniqwlist' for page X/Y` or `restart at page 1/Y`).
+#### `uniqwladd <botname> [modes]`
 
-Examples:
+Scans a bot's inventory and bulk-adds all matching tradable items to the whitelist, skipping duplicates. Reports added/skipped counts.
 
 ```text
-uniqwlist
-Whitelist (47 total, page 1/3):
-  [1] Item Name | appid=730 | type=TradingCard | classid=1234567890
-  ...
-Next: run 'uniqwlist' for page 2/3.
-
-uniqwlist 999
-Whitelist (47 total, page 3/3):
-  ...
-End of list. Run 'uniqwlist' to restart at page 1/3.
+uniqwladd MAIN
+uniqwladd MAIN cards,backgrounds
 ```
 
-The plugin stores whitelist entries in `item-whitelist.json` next to the plugin DLL.
+---
 
-Items listed there are skipped before transfer batches are built, for both dry runs and real trades.
+#### `uniqwlist` — list and manage whitelist entries
 
-Example:
+Behavior depends on context and arguments:
+
+| Arguments | Context | Behavior |
+|---|---|---|
+| *(none)* | ASF console (interactive) | Full-screen interactive browser. `↑`/`↓` moves cursor; `Space` selects/deselects; `Enter`/`D`/`Delete` removes selected entries after Y/N prompt; `Esc`/`Q` quits. |
+| *(none)* | IPC / Steam chat | Auto-advance paging: each call advances to the next page, wrapping to page 1 after the last. |
+| `<page>` | Any | Jump to the specified page number (clamped to last page). |
+| `select <index>` | Any | Show full details for the whitelist entry at `<index>`. |
+| `inventory <botname> [modes]` | ASF console (interactive) | Interactive inventory-backed checklist. `[x]` = will be whitelisted, `[ ]` = will be removed from whitelist, `*` = changed from current state. `Space` toggles; `Enter`/`D`/`Delete` applies (Y/N confirm); `Esc`/`Q` cancels. |
+| `inventory <botname> [modes]` | IPC / Steam chat | Starts a per-caller stateful session (5 min inactivity timeout). Replaces any prior session for that caller. Use the session sub-commands below to navigate and commit changes. |
+| `inventory show` (or `current`) | IPC (active session) | Re-display the current page of the active inventory session. |
+| `inventory next` | IPC (active session) | Advance to the next page. |
+| `inventory prev` | IPC (active session) | Go back to the previous page. |
+| `inventory toggle <index>` | IPC (active session) | Toggle the whitelist state for the item at `<index>` (global 1-based index shown in session pages). Re-displays the current page. |
+| `inventory apply` | IPC (active session) | Write the current selection to `item-whitelist.json`. Reports added/removed counts and re-displays the page. Session remains active for further edits. |
+| `inventory cancel` | IPC (active session) | Discard the active session without making any changes. |
+
+#### IPC inventory session workflow
+
+```text
+# 1. Start a session — loads inventory, pre-selects items already on the whitelist
+uniqwlist inventory MAIN cards
+
+# Output: session started, first page shown
+# Inventory whitelist sync (MAIN | modes: cards) — page 1/3 — 2 changed
+#   [1] [x]* Portal 2 Card    | appid=620  | type=TradingCard | classid=111
+#   [2] [ ]  CS2 Card         | appid=730  | type=TradingCard | classid=222
+#   ...
+# Legend: [x]=will be whitelisted  [ ]=will be removed  *=changed
+# Commands: uniqwlist inventory show | next | prev | toggle <index> | apply | cancel
+
+# 2. Navigate pages
+uniqwlist inventory next
+uniqwlist inventory prev
+
+# 3. Toggle individual items on/off (use the index shown on the left)
+uniqwlist inventory toggle 2
+
+# 4. Commit changes — writes to item-whitelist.json; session stays open
+uniqwlist inventory apply
+
+# 5. Or discard all pending changes
+uniqwlist inventory cancel
+```
+
+IPC/headless inventory sessions expire automatically after **5 minutes of inactivity**.
+
+---
+
+#### `uniqwlremove <index|classID>`
+
+Remove a whitelist entry by **1-based index** (as shown in `uniqwlist`) or by full **64-bit ClassID** (removes all matching entries).
+
+```text
+uniqwlremove 3
+uniqwlremove 1234567890
+```
+
+---
+
+#### `uniqwlclear [--confirm]`
+
+Without `--confirm`: shows the current entry count and asks you to re-run with `--confirm`.  
+With `--confirm`: permanently removes all whitelist entries.
+
+---
+
+### Whitelist file format
+
+Entries are stored in `item-whitelist.json` next to the plugin DLL. Each entry matches on `realAppID`, `type`, and `classID`.
 
 ```json
 {
@@ -109,20 +158,8 @@ Example:
 }
 ```
 
-Each entry matches on:
+When whitelist entries are matched during a transfer, the output includes the number of unique transfer candidates skipped.
 
-- `realAppID`
-- `type`
-- `classID`
-
-When whitelist entries are matched, command output includes the number of unique transfer candidates skipped.
-
-
-### External Steam inventory userscript
-
-A companion userscript for building whitelist entries from the Steam inventory page is maintained in its own repository: [SteamInventoryWhitelistExport](https://github.com/dotechin/SteamInventoryWhitelistExport).
-
-Install it in Tampermonkey or Greasemonkey, open a Steam inventory page, select the items you want to protect, and copy the exported JSON into `item-whitelist.json` next to the plugin DLL.
 
 
 ## Build
