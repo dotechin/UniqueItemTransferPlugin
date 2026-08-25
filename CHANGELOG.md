@@ -2,6 +2,13 @@
 
 All notable changes to UniqueItemTransferPlugin will be documented here.
 
+## [1.2.6] — 2026-08-25
+
+### Changed
+- Expanded in-code `--help` output with full per-context sub-command descriptions for all whitelist manager commands.
+- Overhauled README Whitelist Manager section: added comprehensive command reference table (console vs IPC context), step-by-step IPC inventory session workflow, and complete `[x]`/`[ ]`/`*` legend.
+- Documented the standalone-repository assessment for the whitelist manager.
+
 ## [1.2.5] — 2026-08-24
 
 ### Added
