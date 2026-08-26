@@ -36,4 +36,4 @@ jobs:
       run: dotnet --info
 
     - name: Build ${{ matrix.configuration }}
-      run: dotnet build UniqueItemTransferPlugin -c "${{ matrix.configuration }}" -p:ContinuousIntegrationBuild=true -p:UseAppHost=false --nologo
+      run: dotnet build UniqueItemTransferPlugin.csproj -c "${{ matrix.configuration }}" -p:ContinuousIntegrationBuild=true -p:UseAppHost=false --nologo
