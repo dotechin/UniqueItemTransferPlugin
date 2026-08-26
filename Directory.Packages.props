@@ -1,3 +1,11 @@
 <Project>
-	<Import Project="ArchiSteamFarm/Directory.Packages.props" />
+	<PropertyGroup>
+		<ArchiSteamFarmDirectoryPackagesProps>ArchiSteamFarm/Directory.Packages.props</ArchiSteamFarmDirectoryPackagesProps>
+	</PropertyGroup>
+
+	<Import Project="$(ArchiSteamFarmDirectoryPackagesProps)" Condition="Exists('$(ArchiSteamFarmDirectoryPackagesProps)')" />
+
+	<Target Name="EnsureArchiSteamFarmSubmoduleInitialized" BeforeTargets="Restore" Condition="!Exists('$(ArchiSteamFarmDirectoryPackagesProps)')">
+		<Error Text="Required MSBuild props file '$(ArchiSteamFarmDirectoryPackagesProps)' was not found. Ensure the ArchiSteamFarm submodule is initialized (for example, clone with '--recurse-submodules' or run 'git submodule update --init --recursive')." />
+	</Target>
 </Project>
