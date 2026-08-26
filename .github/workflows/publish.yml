@@ -54,7 +54,7 @@ jobs:
       run: |
         set -eu
 
-        dotnet publish "$PLUGIN_NAME" -c "$CONFIGURATION" -o "out/plugin/${PLUGIN_NAME}" -p:ContinuousIntegrationBuild=true -p:TargetLatestRuntimePatch=false -p:UseAppHost=false --nologo
+        dotnet publish "UniqueItemTransferPlugin.csproj" -c "$CONFIGURATION" -o "out/plugin/${PLUGIN_NAME}" -p:ContinuousIntegrationBuild=true -p:TargetLatestRuntimePatch=false -p:UseAppHost=false --nologo
 
         # By default use fastest compression
         seven_zip_args="-mx=1"
