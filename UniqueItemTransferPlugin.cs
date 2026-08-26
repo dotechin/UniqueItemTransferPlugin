@@ -16,7 +16,7 @@ namespace UniqueItemTransferPlugin;
 internal sealed class UniqueItemTransferPlugin : IGitHubPluginUpdates, IBotCommand2 {
 	public string Name => nameof(UniqueItemTransferPlugin);
 	public string RepositoryName => "dotechin/UniqueItemTransferPlugin";
-	public Version Version => typeof(UniqueItemTransferPlugin).Assembly.GetName().Version ?? throw new InvalidOperationException(nameof(Version));
+	public Version Version => typeof(UniqueItemTransferPlugin).Assembly.GetName().Version ?? new Version(1, 0);
 
 	public Task OnLoaded() {
 		ASF.ArchiLogger.LogGenericInfo($"{nameof(UniqueItemTransferPlugin)} v{Version} loaded.");
