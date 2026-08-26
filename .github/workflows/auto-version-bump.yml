@@ -20,7 +20,7 @@ jobs:
           import re
           import os
 
-          project = pathlib.Path("UniqueItemTransferPlugin.csproj")
+          project = pathlib.Path("Directory.Build.props")
           content = project.read_text(encoding="utf-8")
 
           version_match = re.search(r"<Version>(\d+)\.(\d+)\.(\d+)</Version>", content)
@@ -70,6 +70,6 @@ jobs:
           fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add UniqueItemTransferPlugin.csproj
+          git add Directory.Build.props
           git commit -m "chore: bump version to ${{ steps.bump.outputs.new_version }} [skip version bump]"
           git push

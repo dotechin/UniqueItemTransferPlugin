@@ -1,100 +1,73 @@
-name: Bump ASF Reference
+name: Plugin-bump-asf-reference
 
 on:
-  workflow_dispatch:
   schedule:
-    - cron: '0 8 * * 1'
+  - cron: '17 1 * * *'
+
+  workflow_dispatch:
+
+env:
+  GPG_PRIVATE_KEY: ${{ secrets.ARCHIBOT_GPG_PRIVATE_KEY }} # Optional, if secret not provided, will skip signing commit with GPG key
+  PUSH_GITHUB_TOKEN: ${{ secrets.ARCHIBOT_GITHUB_TOKEN || secrets.GITHUB_TOKEN }} # Optional, if secret not provided, will use the default token
+  RELEASE_TYPE: stable # Recommended to choose one from: stable (latest ASF stable release), nodraft (latest ASF release, including pre-releases, but without drafts)
+
+permissions:
+  contents: write
 
 jobs:
-  bump:
+  main:
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      pull-requests: write
+
     steps:
-      - uses: actions/checkout@v4
-      - name: Update bundled ASF references
-        id: update
-        run: |
-          python <<'PY'
-          import json
-          import hashlib
-          import pathlib
-          import re
-          import urllib.request
-          import zipfile
-          import xml.etree.ElementTree as ET
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        show-progress: false
+        token: ${{ env.PUSH_GITHUB_TOKEN }}
 
-          project = pathlib.Path('UniqueItemTransferPlugin.csproj')
-          tree = ET.parse(project)
-          root = tree.getroot()
-          version_property = None
-          for group in root.findall('./PropertyGroup'):
-              for node in group.findall('AsfVersion'):
-                  version_property = node
-                  break
-              if version_property is not None:
-                  break
-          if version_property is None:
-              raise SystemExit('AsfVersion property not found')
+    - name: Fetch latest ArchiSteamFarm release
+      id: asf-release
+      uses: rez0n/actions-github-release@v2.1
+      env:
+        repository: JustArchiNET/ArchiSteamFarm
+        token: ${{ secrets.GITHUB_TOKEN }}
+        type: ${{ env.RELEASE_TYPE }}
 
-          current = version_property.text
-          with urllib.request.urlopen('https://api.github.com/repos/JustArchiNET/ArchiSteamFarm/releases/latest', timeout=30) as response:
-              latest = json.load(response)['tag_name'].lstrip('v')
+    - name: Import GPG key for signing
+      uses: crazy-max/ghaction-import-gpg@v7
+      if: ${{ env.GPG_PRIVATE_KEY != null }}
+      with:
+        gpg_private_key: ${{ env.GPG_PRIVATE_KEY }}
+        git_user_signingkey: true
+        git_commit_gpgsign: true
 
-          if not re.fullmatch(r'\d+\.\d+\.\d+\.\d+', latest):
-              raise SystemExit(f'Unexpected ASF version: {latest}')
+    - name: Update ASF reference if needed
+      env:
+        LATEST_ASF_RELEASE: ${{ steps.asf-release.outputs.release }}
+      shell: sh
+      run: |
+        set -eu
 
-          if latest == current:
-              print('updated=false')
-              pathlib.Path('update-output.txt').write_text('already up to date', encoding='utf-8')
-              raise SystemExit(0)
+        current_version="$(git config -f .gitmodules submodule.ArchiSteamFarm.branch)"
 
-          version_property.text = latest
-          tree.write(project, encoding='utf-8', xml_declaration=False)
+        if dpkg --compare-versions "$current_version" "ge" "$LATEST_ASF_RELEASE"; then
+            exit
+        fi
 
-          archive_path = pathlib.Path('lib/ASF-generic.zip')
-          archive_path.parent.mkdir(parents=True, exist_ok=True)
-          download_url = f'https://github.com/JustArchiNET/ArchiSteamFarm/releases/download/{latest}/ASF-generic.zip'
-          urllib.request.urlretrieve(download_url, archive_path)  # noqa: S310 — URL is constructed from a validated version string
-          checksums_url = f'https://github.com/JustArchiNET/ArchiSteamFarm/releases/download/{latest}/SHA512SUMS'
-          with urllib.request.urlopen(checksums_url, timeout=30) as response:
-              checksums = response.read().decode('utf-8')
+        git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
-          expected = None
-          for line in checksums.splitlines():
-              parts = line.split(maxsplit=1)
-              if len(parts) == 2 and parts[1].strip() == 'ASF-generic.zip':
-                  expected = parts[0].strip().lower()
-                  break
+        git config -f .gitmodules submodule.ArchiSteamFarm.branch "$LATEST_ASF_RELEASE"
 
-          if expected is None:
-              raise SystemExit('ASF-generic.zip checksum not found')
+        git add -A ".gitmodules"
 
-          actual = hashlib.sha512(archive_path.read_bytes()).hexdigest().lower()
-          if actual != expected:
-              raise SystemExit('Checksum verification failed for ASF-generic.zip')
+        if ! git config --get user.email > /dev/null; then
+            git config --local user.email "action@github.com"
+        fi
 
-          with zipfile.ZipFile(archive_path) as archive:
-              for name in ('ArchiSteamFarm.dll', 'SteamKit2.dll', 'System.Composition.AttributedModel.dll'):
-                  archive.extract(name, archive_path.parent)
+        if ! git config --get user.name > /dev/null; then
+            git config --local user.name "GitHub Action"
+        fi
 
-          archive_path.unlink(missing_ok=True)
-          pathlib.Path('update-output.txt').write_text(f'{current} -> {latest}', encoding='utf-8')
-          print('updated=true')
-          PY
-      - name: Read update result
-        id: result
-        run: |
-          if git diff --quiet; then
-            echo "updated=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "updated=true" >> "$GITHUB_OUTPUT"
-          fi
-      - uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # v7
-        if: steps.result.outputs.updated == 'true'
-        with:
-          commit-message: chore: bump ASF reference
-          title: chore: bump ASF reference
-          body: Automated update of bundled ASF reference assemblies to the latest ASF release.
-          branch: chore/bump-asf-reference
+        git commit -m "Automatic ArchiSteamFarm reference update to ${LATEST_ASF_RELEASE}"
+
+        git push

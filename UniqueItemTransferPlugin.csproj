@@ -1,33 +1,18 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <OutputType>Library</OutputType>
-    <AssemblyName>UniqueItemTransferPlugin</AssemblyName>
-    <RootNamespace>UniqueItemTransferPlugin</RootNamespace>
-    <Version>1.2.6</Version>
-    <AssemblyVersion>1.2.6.0</AssemblyVersion>
-    <FileVersion>1.2.6.0</FileVersion>
-    <Authors>dotechin</Authors>
-    <Description>ASF plugin for transferring only unique Steam Community items between bots.</Description>
-    <PackageId>UniqueItemTransferPlugin</PackageId>
-    <RepositoryUrl>https://github.com/dotechin/UniqueItemTransferPlugin</RepositoryUrl>
-    <AsfVersion>6.3.8.4</AsfVersion>
-  </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>Library</OutputType>
+	</PropertyGroup>
 
-  <ItemGroup>
-    <Reference Include="ArchiSteamFarm">
-      <HintPath>lib/ArchiSteamFarm.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="SteamKit2">
-      <HintPath>lib/SteamKit2.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-    <Reference Include="System.Composition.AttributedModel">
-      <HintPath>lib/System.Composition.AttributedModel.dll</HintPath>
-      <Private>false</Private>
-    </Reference>
-  </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="JetBrains.Annotations.Sources" PrivateAssets="all" />
+		<PackageReference Include="System.Composition.AttributedModel" IncludeAssets="compile" />
+	</ItemGroup>
+
+	<ItemGroup>
+		<ProjectReference Include="..\ArchiSteamFarm\ArchiSteamFarm\ArchiSteamFarm.csproj" ExcludeAssets="all" Private="false" />
+	</ItemGroup>
+
+	<Target Name="PostBuild" AfterTargets="PostBuildEvent">
+		<Copy SourceFolders="$(TargetDir)" DestinationFolder="..\ArchiSteamFarm\ArchiSteamFarm\bin\$(Configuration)\$(TargetFramework)\plugins\$(AssemblyName)\" SkipUnchangedFiles="true" />
+	</Target>
 </Project>

@@ -1,20 +1,22 @@
+using System;
 using System.ComponentModel;
 using System.Composition;
-using System.Text.Json.Serialization;
+using System.Threading.Tasks;
 using ArchiSteamFarm.Core;
 using ArchiSteamFarm.Plugins.Interfaces;
 using ArchiSteamFarm.Steam;
+using JetBrains.Annotations;
 using UniqueItemTransferPlugin.Services;
 
 namespace UniqueItemTransferPlugin;
 
+#pragma warning disable CA1812 // ASF uses this class during runtime
 [Export(typeof(IPlugin))]
-public sealed class UniqueItemTransferPlugin : IPlugin, IBotCommand2 {
-	[JsonInclude]
+[UsedImplicitly]
+internal sealed class UniqueItemTransferPlugin : IGitHubPluginUpdates, IBotCommand2 {
 	public string Name => nameof(UniqueItemTransferPlugin);
-
-	[JsonInclude]
-	public Version Version => typeof(UniqueItemTransferPlugin).Assembly.GetName().Version ?? new Version(0, 0, 0, 9);
+	public string RepositoryName => "dotechin/UniqueItemTransferPlugin";
+	public Version Version => typeof(UniqueItemTransferPlugin).Assembly.GetName().Version ?? throw new InvalidOperationException(nameof(Version));
 
 	public Task OnLoaded() {
 		ASF.ArchiLogger.LogGenericInfo($"{nameof(UniqueItemTransferPlugin)} v{Version} loaded.");
@@ -32,3 +34,4 @@ public sealed class UniqueItemTransferPlugin : IPlugin, IBotCommand2 {
 		return TransferService.Instance.OnBotCommandAsync(bot, access, args, steamID);
 	}
 }
+#pragma warning restore CA1812 // ASF uses this class during runtime

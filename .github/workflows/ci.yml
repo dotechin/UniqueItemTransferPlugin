@@ -1,21 +1,39 @@
-name: CI
+name: Plugin-ci
 
-on:
-  push:
-    branches: [main]
-  pull_request:
+on: [pull_request, push, workflow_dispatch]
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  DOTNET_NOLOGO: true
+  DOTNET_SDK_VERSION: 10.0
+
+permissions:
+  contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
+  main:
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Debug, Release]
+        os: [macos-latest, ubuntu-latest, windows-latest]
+
+    runs-on: ${{ matrix.os }}
+
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: 10.0.x
-      - name: Restore
-        run: dotnet restore UniqueItemTransferPlugin.csproj
-      - name: Build
-        run: dotnet build UniqueItemTransferPlugin.csproj -c Release --no-restore
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        show-progress: false
+        submodules: recursive
+
+    - name: Setup .NET Core
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: ${{ env.DOTNET_SDK_VERSION }}
+
+    - name: Verify .NET Core
+      run: dotnet --info
+
+    - name: Build ${{ matrix.configuration }}
+      run: dotnet build UniqueItemTransferPlugin -c "${{ matrix.configuration }}" -p:ContinuousIntegrationBuild=true -p:UseAppHost=false --nologo
