@@ -182,7 +182,7 @@ dotnet build -c Release
 
 ## TODO
 
-- Refine the trade message
+- Refine the trade message and make it editable
 
 ## License
 
