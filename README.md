@@ -180,6 +180,10 @@ dotnet build -c Release
 - Transfer history is saved to `transfer-history.json` in the plugin directory (alongside the plugin DLL), capped at 100 entries
 - If `transfer-history.json` or `item-whitelist.json` is invalid JSON, the plugin keeps a `.corrupt-*` backup and starts with an empty in-memory state
 
+## TODO
+
+- Refine the trade message
+
 ## License
 
 Apache License 2.0
