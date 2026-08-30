@@ -186,6 +186,7 @@ dotnet build -c Release
 - Investigate whitelist semplifications
 - Add whitelist for any bot
 - Inventory variant to make an easier and faster trade-matching between accounts
+- Refine commands of the uniqwlist inventory (Enter:Add/Remove - Esc:Exit)
 
 ## License
 
