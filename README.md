@@ -182,9 +182,6 @@ dotnet build -c Release
 
 ## TODO
 
-- Refine the trade message and make it editable
-- Investigate whitelist semplifications
-- Add whitelist for any bot
 - Inventory variant to make an easier and faster trade-matching between accounts
 
 ## License
