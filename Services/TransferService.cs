@@ -302,7 +302,7 @@ public sealed class TransferService {
 			.AppendLine("    Show full details for the whitelist entry at <index>.")
 			.AppendLine($"  {WlListCommand} inventory <botname> [modes]")
 			.AppendLine("    Console: interactive inventory checklist — [x]=will be whitelisted, [ ]=will be removed,")
-			.AppendLine("      *=changed from current state. Space toggles; Enter/D/Delete applies (Y/N confirm); Esc/Q cancels.")
+			.AppendLine("      Enter adds/removes the focused item; Esc exits.")
 			.AppendLine("    IPC/chat: starts a per-caller stateful session (5 min inactivity timeout).")
 			.AppendLine("      Replaces any prior session for that caller. Use inventory sub-commands below to manage it.")
 			.AppendLine($"  {WlListCommand} inventory show  (or: current)")
@@ -877,7 +877,7 @@ public sealed class TransferService {
 			void Render() {
 				Console.Clear();
 				Console.WriteLine(requestingBot.Commands.FormatBotResponse(BuildInventoryWhitelistPage(inventoryEntries, page, totalPages, cursorIndex, selectedIndexes, initialSelectedIndexes, botName, modes)));
-				Console.WriteLine("  Arrow keys: move  |  Space: toggle  |  Enter / D / Del: apply  |  Esc / Q: quit");
+				Console.WriteLine("  Arrow keys: move  |  Enter: add/remove  |  Esc: exit");
 			}
 
 			Render();
@@ -885,7 +885,7 @@ public sealed class TransferService {
 			while (true) {
 				ConsoleKeyInfo key = Console.ReadKey(intercept: true);
 
-				if (key.Key is ConsoleKey.Escape || key.KeyChar is 'q' or 'Q') {
+				if (key.Key == ConsoleKey.Escape) {
 					wlListPageState[steamID] = page;
 					Console.WriteLine();
 					return requestingBot.Commands.FormatBotResponse($"Inventory whitelist browsing stopped at page {page}/{totalPages} for {botName}.");
@@ -919,11 +919,16 @@ public sealed class TransferService {
 					continue;
 				}
 
-				if (key.Key == ConsoleKey.Spacebar) {
+				if (key.Key == ConsoleKey.Enter) {
 					if (!selectedIndexes.Add(cursorIndex)) {
 						selectedIndexes.Remove(cursorIndex);
 					}
 
+					HashSet<AssetMatchKey> desiredKeys = [
+						.. selectedIndexes.Select(index => inventoryEntries[index - 1].ToKey())
+					];
+					whitelistService.SyncInventorySelection(inventoryEntries, desiredKeys);
+					initialSelectedIndexes = [.. selectedIndexes];
 					Render();
 					continue;
 				}
@@ -948,37 +953,6 @@ public sealed class TransferService {
 					continue;
 				}
 
-				bool isApplyKey = key.Key is ConsoleKey.Enter or ConsoleKey.Delete or ConsoleKey.D;
-
-				if (isApplyKey) {
-					HashSet<AssetMatchKey> desiredKeys = [
-						.. selectedIndexes.Select(index => inventoryEntries[index - 1].ToKey())
-					];
-					int changedCount = GetSelectionChangeCount(selectedIndexes, initialSelectedIndexes);
-
-					Console.WriteLine();
-					Console.Write(changedCount == 0
-						? "  No changes detected. Re-apply current whitelist state? [Y/N]: "
-						: $"  Apply {changedCount} whitelist change(s) for {botName} inventory selection? [Y/N]: ");
-					ConsoleKeyInfo confirmKey = Console.ReadKey(intercept: true);
-					Console.WriteLine();
-
-					if (confirmKey.KeyChar is 'y' or 'Y') {
-						(int added, int removed) = whitelistService.SyncInventorySelection(inventoryEntries, desiredKeys);
-						currentWhitelistKeys = [.. whitelistService.Load().Entries.Select(static entry => entry.ToKey())];
-						selectedIndexes = [
-							.. inventoryEntries
-								.Select(static (entry, i) => (Entry: entry, Index: i + 1))
-								.Where(tuple => currentWhitelistKeys.Contains(tuple.Entry.ToKey()))
-								.Select(static tuple => tuple.Index)
-						];
-						initialSelectedIndexes = [.. selectedIndexes];
-						Console.WriteLine(requestingBot.Commands.FormatBotResponse($"Whitelist synced from {botName} inventory: {added} added, {removed} removed."));
-					}
-
-					Render();
-					continue;
-				}
 			}
 		}
 	}
@@ -1065,8 +1039,8 @@ public sealed class TransferService {
 				.AppendLine(entry.ClassID.ToString());
 		}
 
-		response.AppendLine("Legend: [x]=will be whitelisted, [ ]=will be removed from whitelist, *=changed");
-		response.Append("Press Enter/D/Delete to apply changes to item-whitelist.json.");
+		response.AppendLine("Legend: [x]=whitelisted, [ ]=not whitelisted");
+		response.Append("Press Enter to add/remove the focused item.");
 
 		return response.ToString().TrimEnd();
 	}

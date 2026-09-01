@@ -82,7 +82,7 @@ Behavior depends on context and arguments:
 | *(none)* | IPC / Steam chat | Auto-advance paging: each call advances to the next page, wrapping to page 1 after the last. |
 | `<page>` | Any | Jump to the specified page number (clamped to last page). |
 | `select <index>` | Any | Show full details for the whitelist entry at `<index>`. |
-| `inventory <botname> [modes]` | ASF console (interactive) | Interactive inventory-backed checklist. `[x]` = will be whitelisted, `[ ]` = will be removed from whitelist, `*` = changed from current state. `Space` toggles; `Enter`/`D`/`Delete` applies (Y/N confirm); `Esc`/`Q` cancels. |
+| `inventory <botname> [modes]` | ASF console (interactive) | Interactive inventory-backed checklist. `[x]` = whitelisted; `[ ]` = not whitelisted. `Enter` immediately adds/removes the focused item; `Esc` exits. |
 | `inventory <botname> [modes]` | IPC / Steam chat | Starts a per-caller stateful session (5 min inactivity timeout). Replaces any prior session for that caller. Use the session sub-commands below to navigate and commit changes. |
 | `inventory show` (or `current`) | IPC (active session) | Re-display the current page of the active inventory session. |
 | `inventory next` | IPC (active session) | Advance to the next page. |
@@ -186,7 +186,6 @@ dotnet build -c Release
 - Investigate whitelist semplifications
 - Add whitelist for any bot
 - Inventory variant to make an easier and faster trade-matching between accounts
-- Refine commands of the uniqwlist inventory (Enter:Add/Remove - Esc:Exit)
 
 ## License
 

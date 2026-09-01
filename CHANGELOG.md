@@ -2,6 +2,11 @@
 
 All notable changes to UniqueItemTransferPlugin will be documented here.
 
+## Unreleased
+
+### Changed
+- Simplified interactive `uniqwlist inventory` controls: `Enter` immediately adds or removes the focused item, and `Esc` exits.
+
 ## [1.2.6] — 2026-08-25
 
 ### Changed
