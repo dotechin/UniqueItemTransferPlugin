@@ -2,6 +2,20 @@
 
 All notable changes to UniqueItemTransferPlugin will be documented here.
 
+## Unreleased
+
+## [1.2.8] — 2026-09-04
+
+### Changed
+- `unique` now sends trade offers immediately; `--dryrun`, `--confirm`, and `uniqconfirm` have been removed.
+- Shortened item modes from `backgrounds` and `emoticons` to `bgs` and `ems`.
+- Removed `uniqhistory` and transfer-history persistence.
+
+## [1.2.7] — 2026-09-01
+
+### Changed
+- Simplified interactive `uniqwlist inventory` controls: `Enter` immediately adds or removes the focused item, and `Esc` exits.
+
 ## [1.2.6] — 2026-08-25
 
 ### Changed

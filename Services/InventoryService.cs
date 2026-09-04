@@ -8,8 +8,8 @@ public sealed class InventoryService {
 	private static readonly IReadOnlyDictionary<string, IReadOnlySet<EAssetType>> ModeMappings = new Dictionary<string, IReadOnlySet<EAssetType>>(StringComparer.OrdinalIgnoreCase) {
 		["all"] = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard, EAssetType.ProfileBackground, EAssetType.Emoticon },
 		["cards"] = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard },
-		["backgrounds"] = new HashSet<EAssetType> { EAssetType.ProfileBackground },
-		["emoticons"] = new HashSet<EAssetType> { EAssetType.Emoticon }
+		["bgs"] = new HashSet<EAssetType> { EAssetType.ProfileBackground },
+		["ems"] = new HashSet<EAssetType> { EAssetType.Emoticon }
 	};
 
 	public bool TryResolveModes(IEnumerable<string> requestedModes, out HashSet<EAssetType> assetTypes, out List<string> normalizedModes, out List<string> invalidModes) {
