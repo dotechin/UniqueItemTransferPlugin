@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Text;
-using System.Text.Json;
 using ArchiSteamFarm.Core;
 using ArchiSteamFarm.Steam;
 using UniqueItemTransferPlugin.Models;
@@ -9,14 +8,11 @@ namespace UniqueItemTransferPlugin.Services;
 
 public sealed class TransferService {
 	private const string UniqueCommand = "unique";
-	private const string ConfirmCommand = "uniqconfirm";
-	private const string HistoryCommand = "uniqhistory";
 	private const string WlAddCommand = "uniqwladd";
 	private const string WlListCommand = "uniqwlist";
 	private const string WlRemoveCommand = "uniqwlremove";
 	private const string WlClearCommand = "uniqwlclear";
 	private const int WlListPageSize = 20;
-	private static readonly TimeSpan ConfirmationTimeout = TimeSpan.FromMinutes(5);
 	private static readonly TimeSpan InventorySessionTimeout = TimeSpan.FromMinutes(5);
 	private static readonly object WlConsoleBrowseLock = new();
 
@@ -24,18 +20,14 @@ public sealed class TransferService {
 
 	private readonly BatchingService batchingService = new();
 	private readonly InventoryService inventoryService = new();
-	private readonly ConcurrentDictionary<Guid, TransferRequest> pendingTransfers = new();
 	private readonly ConcurrentDictionary<ulong, InventoryWhitelistSession> inventoryWhitelistSessions = new();
 	private readonly ConcurrentDictionary<ulong, int> wlListPageState = new();
-	private readonly object historyLock = new();
-	private readonly string historyPath;
 	private readonly WhitelistService whitelistService;
 
 	private TransferService() {
 		string? pluginDirectory = Path.GetDirectoryName(typeof(UniqueItemTransferPlugin).Assembly.Location);
 		pluginDirectory = string.IsNullOrEmpty(pluginDirectory) ? AppContext.BaseDirectory : pluginDirectory;
 		Directory.CreateDirectory(pluginDirectory);
-		historyPath = Path.Combine(pluginDirectory, "transfer-history.json");
 		whitelistService = new WhitelistService(Path.Combine(pluginDirectory, "item-whitelist.json"));
 	}
 
@@ -46,7 +38,6 @@ public sealed class TransferService {
 			return null;
 		}
 
-		PruneExpiredTransfers();
 		PruneExpiredInventorySessions();
 
 		string command = args[0].ToLowerInvariant();
@@ -57,8 +48,6 @@ public sealed class TransferService {
 
 		return command switch {
 			UniqueCommand => await HandleUniqueTransferAsync(bot, access, args).ConfigureAwait(false),
-			ConfirmCommand => await HandleConfirmationAsync(bot, access, args).ConfigureAwait(false),
-			HistoryCommand => HandleHistory(bot, access),
 			WlAddCommand => await HandleWlAddAsync(bot, access, args).ConfigureAwait(false),
 			WlListCommand => await HandleWlListAsync(bot, access, args, steamID).ConfigureAwait(false),
 			WlRemoveCommand => HandleWlRemove(bot, access, args),
@@ -73,7 +62,7 @@ public sealed class TransferService {
 		}
 
 		if (args.Count < 3) {
-			return requestingBot.Commands.FormatBotResponse($"Usage: {UniqueCommand} <bot1> <bot2> [modes] [--dryrun] [--confirm] [--force]");
+			return requestingBot.Commands.FormatBotResponse($"Usage: {UniqueCommand} <bot1> <bot2> [modes] [--force]");
 		}
 
 		if (!TryGetBot(args[1], out Bot? sourceBot) || (sourceBot == null) || !TryGetBot(args[2], out Bot? targetBot) || (targetBot == null)) {
@@ -88,14 +77,10 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse("Both bots must be connected and logged on before transferring items.");
 		}
 
-		(bool dryRun, bool autoConfirm, bool force, List<string> modeTokens) = ParseArguments(args.Skip(3));
-
-		if (dryRun && autoConfirm) {
-			return requestingBot.Commands.FormatBotResponse("--dryrun and --confirm cannot be used together. Remove one of the flags.");
-		}
+		(bool force, List<string> modeTokens) = ParseArguments(args.Skip(3));
 
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out List<string> normalizedModes, out List<string> invalidModes)) {
-			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, backgrounds, emoticons.");
+			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems.");
 		}
 
 		HashSet<AssetMatchKey> whitelistedItems = [.. whitelistService.Load().Entries.Select(static entry => entry.ToKey())];
@@ -120,99 +105,20 @@ public sealed class TransferService {
 			SourceBotName = sourceBot.BotName,
 			TargetBotName = targetBot.BotName,
 			Modes = normalizedModes,
-			DryRun = dryRun,
 			Force = force,
 			WhitelistedUniqueItemCount = selectionResult.WhitelistedUniqueItemCount,
-			CreatedAtUtc = DateTimeOffset.UtcNow,
-			ExpiresAtUtc = DateTimeOffset.UtcNow.Add(ConfirmationTimeout),
 			Batches = [.. batchingService.CreateBatches(uniqueItems)]
 		};
-
-		if (dryRun) {
-			AppendHistory(CreateHistoryEntry(request, TransferStatus.DryRun, request.BatchCount, [], null));
-			return requestingBot.Commands.FormatBotResponse(BuildPreviewMessage(request, includeConfirmationHint: false));
-		}
-
-		if (autoConfirm) {
-			return await ExecuteTransferAsync(requestingBot, request).ConfigureAwait(false);
-		}
-
-		pendingTransfers[request.TransferId] = request;
-
-		return requestingBot.Commands.FormatBotResponse(BuildPreviewMessage(request, includeConfirmationHint: true));
-	}
-
-	private async Task<string?> HandleConfirmationAsync(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
-		if (access < EAccess.Master) {
-			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {ConfirmCommand} requires Master access.") : null;
-		}
-
-		if ((args.Count != 2) || !Guid.TryParse(args[1], out Guid transferId)) {
-			return requestingBot.Commands.FormatBotResponse($"Usage: {ConfirmCommand} <transferId>");
-		}
-
-		if (!pendingTransfers.TryRemove(transferId, out TransferRequest? request) || (request == null)) {
-			return requestingBot.Commands.FormatBotResponse("Transfer not found, already processed, or expired.");
-		}
-
-		if (request.ExpiresAtUtc < DateTimeOffset.UtcNow) {
-			AppendHistory(CreateHistoryEntry(request, TransferStatus.Expired, 0, [], "Confirmation window expired before approval."));
-			return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} expired and must be recreated.");
-		}
 
 		return await ExecuteTransferAsync(requestingBot, request).ConfigureAwait(false);
 	}
 
-	private string? HandleHistory(Bot requestingBot, EAccess access) {
-		if (access < EAccess.Master) {
-			return access > EAccess.None ? requestingBot.Commands.FormatBotResponse($"Access denied. {HistoryCommand} requires Master access.") : null;
-		}
-
-		TransferHistory history = LoadHistory();
-
-		if (history.Entries.Count == 0) {
-			return requestingBot.Commands.FormatBotResponse("No transfer history is available yet.");
-		}
-
-		StringBuilder response = new();
-		response.AppendLine("Recent transfer history:");
-
-		foreach (TransferHistoryEntry entry in history.Entries.OrderByDescending(static item => item.CompletedAtUtc).Take(10)) {
-			response.Append("- ")
-				.Append(entry.TransferId)
-				.Append(": ")
-				.Append(entry.SourceBotName)
-				.Append(" -> ")
-				.Append(entry.TargetBotName)
-				.Append(" | status=")
-				.Append(entry.Status)
-				.Append(" | items=")
-				.Append(entry.PlannedItemCount)
-				.Append(" | batches=")
-				.Append(entry.CompletedBatchCount)
-				.Append(" | modes=")
-				.Append(string.Join(",", entry.Modes))
-				.Append(" | completed=")
-				.Append(entry.CompletedAtUtc.ToString("u"));
-
-			if (!string.IsNullOrEmpty(entry.ErrorMessage)) {
-				response.Append(" | error=").Append(entry.ErrorMessage);
-			}
-
-			response.AppendLine();
-		}
-
-		return requestingBot.Commands.FormatBotResponse(response.ToString().TrimEnd());
-	}
-
 	private async Task<string> ExecuteTransferAsync(Bot requestingBot, TransferRequest request) {
 		if (!TryGetBot(request.SourceBotName, out Bot? sourceBot) || (sourceBot == null) || !TryGetBot(request.TargetBotName, out Bot? targetBot) || (targetBot == null)) {
-			AppendHistory(CreateHistoryEntry(request, TransferStatus.Failed, 0, [], "Source or target bot is no longer available."));
 			return requestingBot.Commands.FormatBotResponse("Unable to execute transfer because one of the bots is unavailable.");
 		}
 
 		if (!sourceBot.IsConnectedAndLoggedOn || !targetBot.IsConnectedAndLoggedOn) {
-			AppendHistory(CreateHistoryEntry(request, TransferStatus.Failed, 0, [], "One or both bots are offline."));
 			return requestingBot.Commands.FormatBotResponse("Unable to execute transfer because one or both bots are offline.");
 		}
 
@@ -222,7 +128,6 @@ public sealed class TransferService {
 			tradeToken = await targetBot.ArchiHandler.GetTradeToken().ConfigureAwait(false);
 		} catch (Exception exception) {
 			targetBot.ArchiLogger.LogGenericWarningException(exception);
-			AppendHistory(CreateHistoryEntry(request, TransferStatus.Failed, 0, [], $"Failed to fetch trade token: {exception.Message}"));
 			return requestingBot.Commands.FormatBotResponse($"Failed to fetch {targetBot.BotName}'s trade token: {exception.Message}");
 		}
 
@@ -235,7 +140,6 @@ public sealed class TransferService {
 				(bool success, HashSet<ulong>? offerIds, HashSet<ulong>? mobileOffersRequiringApproval) = await sourceBot.ArchiWebHandler.SendTradeOffer(targetBot.SteamID, itemsToGive: batch.ToAssets(), token: string.IsNullOrEmpty(tradeToken) ? null : tradeToken, customMessage: $"{nameof(UniqueItemTransferPlugin)} {request.TransferId} batch {batch.BatchNumber}/{request.BatchCount}", forcedSingleOffer: true, itemsPerTrade: BatchingService.SafeBatchLimit).ConfigureAwait(false);
 
 				if (!success) {
-					AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? TransferStatus.PartialFailure : TransferStatus.Failed, completedBatchCount, tradeOfferIds, $"Steam rejected batch {batch.BatchNumber}."));
 					return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} failed while sending batch {batch.BatchNumber}/{request.BatchCount}. Sent batches: {completedBatchCount}. Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "none")}{BuildMobileApprovalSummarySuffix(mobileApprovalOfferIds)}{BuildWhitelistSummarySuffix(request)}");
 				}
 
@@ -250,17 +154,14 @@ public sealed class TransferService {
 				}
 			} catch (Exception exception) {
 				sourceBot.ArchiLogger.LogGenericWarningException(exception);
-				AppendHistory(CreateHistoryEntry(request, completedBatchCount > 0 ? TransferStatus.PartialFailure : TransferStatus.Failed, completedBatchCount, tradeOfferIds, exception.Message));
 				return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} aborted on batch {batch.BatchNumber}/{request.BatchCount}: {exception.Message}{BuildMobileApprovalSummarySuffix(mobileApprovalOfferIds)}{BuildWhitelistSummarySuffix(request)}");
 			}
 		}
 
-		AppendHistory(CreateHistoryEntry(request, TransferStatus.Completed, completedBatchCount, tradeOfferIds, null));
-
 		return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} completed successfully: {request.TotalItemCount} items in {completedBatchCount} batch(es). Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "created without retrievable IDs")}{BuildMobileApprovalSummarySuffix(mobileApprovalOfferIds)}{BuildWhitelistSummarySuffix(request)}");
 	}
 
-	private static bool IsKnownCommand(string command) => command is UniqueCommand or ConfirmCommand or HistoryCommand or WlAddCommand or WlListCommand or WlRemoveCommand or WlClearCommand;
+	private static bool IsKnownCommand(string command) => command is UniqueCommand or WlAddCommand or WlListCommand or WlRemoveCommand or WlClearCommand;
 
 	private static bool IsHelpRequest(IReadOnlyList<string> args) {
 		for (int i = 1; i < args.Count; i++) {
@@ -279,15 +180,9 @@ public sealed class TransferService {
 		response.AppendLine("Available commands:")
 			.AppendLine()
 			.AppendLine("Transfer:")
-			.AppendLine($"  {UniqueCommand} <bot1> <bot2> [modes] [--dryrun] [--confirm] [--force]")
-			.AppendLine("    Plan or execute a unique-item transfer. Modes: all (default), cards, backgrounds, emoticons.")
-			.AppendLine("    --dryrun: preview batches without sending trades.")
-			.AppendLine("    --confirm: execute immediately (skip pending confirmation step).")
+			.AppendLine($"  {UniqueCommand} <bot1> <bot2> [modes] [--force]")
+			.AppendLine("    Immediately sends unique-item trade offers. Modes: all (default), cards, bgs, ems.")
 			.AppendLine("    --force: transfer all eligible items, skipping destination duplicate check.")
-			.AppendLine($"  {ConfirmCommand} <transferId>")
-			.AppendLine("    Confirm a pending transfer within 5 minutes of creation.")
-			.AppendLine($"  {HistoryCommand}")
-			.AppendLine("    Show recent completed, failed, and dry-run transfer records.")
 			.AppendLine()
 			.AppendLine("Whitelist Manager:")
 			.AppendLine($"  {WlAddCommand} <botname> [modes]")
@@ -327,21 +222,12 @@ public sealed class TransferService {
 		return response.ToString();
 	}
 
-	private static (bool DryRun, bool AutoConfirm, bool Force, List<string> Modes) ParseArguments(IEnumerable<string> rawArguments) {
-		bool dryRun = false;
-		bool autoConfirm = false;
+	private static (bool Force, List<string> Modes) ParseArguments(IEnumerable<string> rawArguments) {
 		bool force = false;
 		List<string> modes = [];
 
 		foreach (string argument in rawArguments) {
 			switch (argument.ToLowerInvariant()) {
-				case "--dryrun":
-				case "--dry-run":
-					dryRun = true;
-					break;
-				case "--confirm":
-					autoConfirm = true;
-					break;
 				case "--force":
 					force = true;
 					break;
@@ -351,7 +237,7 @@ public sealed class TransferService {
 			}
 		}
 
-		return (dryRun, autoConfirm, force, modes);
+		return (force, modes);
 	}
 
 	private static bool TryGetBot(string botName, out Bot? bot) {
@@ -364,116 +250,11 @@ public sealed class TransferService {
 		return (bots != null) && bots.TryGetValue(botName, out bot);
 	}
 
-	private static string BuildPreviewMessage(TransferRequest request, bool includeConfirmationHint) {
-		StringBuilder response = new();
-		response.Append(request.DryRun ? "Dry run preview" : "Transfer prepared")
-			.Append(": ")
-			.Append(request.SourceBotName)
-			.Append(" -> ")
-			.Append(request.TargetBotName)
-			.Append(" | transferId=")
-			.Append(request.TransferId)
-			.Append(" | modes=")
-			.Append(string.Join(",", request.Modes))
-			.Append(" | force=")
-			.Append(request.Force ? "on" : "off")
-			.Append(" | items=")
-			.Append(request.TotalItemCount)
-			.Append(" | batches=")
-			.Append(request.BatchCount)
-			.Append(" | safeBatchLimit=")
-			.Append(BatchingService.SafeBatchLimit);
-
-		if (request.WhitelistedUniqueItemCount > 0) {
-			response.Append(" | whitelistedUniqueItems=").Append(request.WhitelistedUniqueItemCount);
-		}
-
-		response.AppendLine();
-
-		foreach (TransferBatch batch in request.Batches.Take(3)) {
-			response.Append("  Batch ")
-				.Append(batch.BatchNumber)
-				.Append(": ")
-				.Append(batch.ItemCount)
-				.Append(" item(s)");
-
-			List<string> sampleNames = batch.Items.Take(5).Select(static item => item.Name).ToList();
-
-			if (sampleNames.Count > 0) {
-				response.Append(" | sample=").Append(string.Join(", ", sampleNames));
-			}
-
-			response.AppendLine();
-		}
-
-		if (request.BatchCount > 3) {
-			response.AppendLine("  ...");
-		}
-
-		if (includeConfirmationHint) {
-			response.Append($"Confirm within {ConfirmationTimeout.TotalMinutes:0} minutes with: {ConfirmCommand} {request.TransferId}");
-		}
-
-		return response.ToString().TrimEnd();
-	}
-
 	private static string BuildWhitelistSummarySuffix(TransferRequest request) => request.WhitelistedUniqueItemCount > 0 ? $" | whitelistedUniqueItems={request.WhitelistedUniqueItemCount}" : string.Empty;
 
 	private static string BuildMobileApprovalSummarySuffix(HashSet<ulong> mobileApprovalOfferIds) => mobileApprovalOfferIds.Count == 0
 		? string.Empty
 		: $" | mobileApprovalRequired={string.Join(", ", mobileApprovalOfferIds)}";
-
-	private void PruneExpiredTransfers() {
-		DateTimeOffset now = DateTimeOffset.UtcNow;
-
-		foreach ((Guid transferId, TransferRequest request) in pendingTransfers) {
-			if (request.ExpiresAtUtc >= now) {
-				continue;
-			}
-
-			pendingTransfers.TryRemove(transferId, out _);
-		}
-	}
-
-	private TransferHistoryEntry CreateHistoryEntry(TransferRequest request, TransferStatus status, int completedBatchCount, List<ulong> tradeOfferIds, string? errorMessage) => new() {
-		TransferId = request.TransferId,
-		SourceBotName = request.SourceBotName,
-		TargetBotName = request.TargetBotName,
-		Modes = [.. request.Modes],
-		DryRun = request.DryRun,
-		Status = status,
-		CreatedAtUtc = request.CreatedAtUtc,
-		CompletedAtUtc = DateTimeOffset.UtcNow,
-		PlannedItemCount = request.TotalItemCount,
-		CompletedBatchCount = completedBatchCount,
-		TradeOfferIds = [.. tradeOfferIds],
-		ErrorMessage = errorMessage
-	};
-
-	private void AppendHistory(TransferHistoryEntry entry) {
-		lock (historyLock) {
-			TransferHistory history = LoadHistoryUnsafe();
-			history.Entries.Add(entry);
-
-			TransferHistory trimmedHistory = history.Entries.Count > 100
-				? new TransferHistory { Entries = history.Entries.OrderByDescending(static item => item.CompletedAtUtc).Take(100).ToList() }
-				: history;
-
-			try {
-				File.WriteAllText(historyPath, JsonSerializer.Serialize(trimmedHistory, JsonPersistence.JsonOptions));
-			} catch (Exception exception) {
-				// Persisting history must never fail the caller: the transfer itself may have already
-				// completed successfully, so we log the failure instead of throwing it further up.
-				ASF.ArchiLogger.LogGenericWarningException(exception);
-			}
-		}
-	}
-
-	private TransferHistory LoadHistory() {
-		lock (historyLock) {
-			return LoadHistoryUnsafe();
-		}
-	}
 
 	private async Task<string?> HandleWlAddAsync(Bot requestingBot, EAccess access, IReadOnlyList<string> args) {
 		if (access < EAccess.Master) {
@@ -495,7 +276,7 @@ public sealed class TransferService {
 		List<string> modeTokens = args.Skip(2).ToList();
 
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out _, out List<string> invalidModes)) {
-			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, backgrounds, emoticons.");
+			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems.");
 		}
 
 		try {
@@ -590,7 +371,7 @@ public sealed class TransferService {
 		List<string> modeTokens = args.Skip(3).ToList();
 
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out List<string> normalizedModes, out List<string> invalidModes)) {
-			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, backgrounds, emoticons.");
+			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems.");
 		}
 
 		List<WhitelistEntry> inventoryEntries;
@@ -1167,27 +948,6 @@ public sealed class TransferService {
 			}
 
 			inventoryWhitelistSessions.TryRemove(steamID, out _);
-		}
-	}
-
-	private TransferHistory LoadHistoryUnsafe() {
-		if (!File.Exists(historyPath)) {
-			return new TransferHistory();
-		}
-
-		try {
-			string historyJson = File.ReadAllText(historyPath);
-			TransferHistory? history = JsonSerializer.Deserialize<TransferHistory>(historyJson, JsonPersistence.JsonOptions);
-
-			if (history != null) {
-				return history;
-			}
-
-			throw new JsonException("Transfer history deserialized to null.");
-		} catch (Exception exception) {
-			ASF.ArchiLogger.LogGenericWarningException(exception);
-			JsonPersistence.BackupCorruptFile(historyPath);
-			return new TransferHistory();
 		}
 	}
 
