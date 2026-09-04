@@ -1,4 +1,4 @@
-# UniqueItemTransferPlugin 1.2.7
+# UniqueItemTransferPlugin 1.2.8
 
 UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
@@ -8,48 +8,35 @@ UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** 
 - Optional `--force` mode to transfer all eligible source items
 - Supports item-type filters for:
   - `cards`
-  - `backgrounds`
-  - `emoticons`
+  - `bgs`
+  - `ems`
 - Splits large transfers into safe batches of **256** items per trade
-- Supports `--dryrun` previews
-- Requires explicit confirmation unless `--confirm` is provided
 - Supports a manual whitelist of items that should never be considered for transfer
-- Stores transfer history in `transfer-history.json`
 - Logs inventory and transfer failures through ASF logging
 
 ## Commands
 
 Run any plugin command with `--help` to print the full command list with short descriptions.
 
-### `unique <bot1> <bot2> [modes] [--dryrun] [--confirm] [--force]`
+### `unique <bot1> <bot2> [modes] [--force]`
 
-Builds a transfer plan from `<bot1>` to `<bot2>`.
+Immediately sends trade offers for unique items from `<bot1>` to `<bot2>`, ready for Steam Guard mobile approval when required.
 
 Examples:
 
 ```text
 unique MAIN DEPOSIT
-unique MAIN DEPOSIT cards,backgrounds --dryrun
-unique MAIN DEPOSIT emoticons --confirm
-unique MAIN DEPOSIT --force --confirm
+unique MAIN DEPOSIT cards,bgs
+unique MAIN DEPOSIT ems
+unique MAIN DEPOSIT --force
 ```
 
 Behavior:
 
 - No mode list means `all`
-- `--dryrun` previews the batches without sending trades
-- Without `--confirm`, the plugin creates a pending transfer and returns a transfer ID
-- Confirm pending transfers with `uniqconfirm <transferId>` within 5 minutes
-- `--confirm` executes immediately after planning
+- `bgs` filters profile backgrounds and `ems` filters emoticons
+- Trade offers are sent immediately; approve them in Steam Guard when ASF reports mobile approval is required
 - `--force` transfers all eligible source items (still honoring mode filters and whitelist), without checking whether the destination already owns matching items
-
-### `uniqconfirm <transferId>`
-
-Confirms a pending transfer created by `unique`.
-
-### `uniqhistory`
-
-Shows the latest completed, failed, and dry-run transfer records.
 
 ### Whitelist
 
@@ -67,7 +54,7 @@ Scans a bot's inventory and bulk-adds all matching tradable items to the whiteli
 
 ```text
 uniqwladd MAIN
-uniqwladd MAIN cards,backgrounds
+uniqwladd MAIN cards,bgs
 ```
 
 ---
@@ -177,8 +164,7 @@ dotnet build -c Release
 - Whitelist exclusions use the same app, type, and class ID matching as duplicate detection
 - Trade offers are sent from the source bot to the destination bot using ASF inventory APIs
 - ASF 6.3.8.4 currently runs on .NET 10, so the plugin targets `net10.0`
-- Transfer history is saved to `transfer-history.json` in the plugin directory (alongside the plugin DLL), capped at 100 entries
-- If `transfer-history.json` or `item-whitelist.json` is invalid JSON, the plugin keeps a `.corrupt-*` backup and starts with an empty in-memory state
+- If `item-whitelist.json` is invalid JSON, the plugin keeps a `.corrupt-*` backup and starts with an empty in-memory state
 
 ## TODO
 
