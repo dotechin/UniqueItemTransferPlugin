@@ -40,7 +40,7 @@ Behavior:
 
 ### Whitelist
 
-The whitelist protects specific items from transfer, even if they match transfer filters. Items listed in `item-whitelist.json` are skipped before transfer batches are built, for both dry runs and real trades.
+The whitelist protects specific items from transfer, even if they match transfer filters. Items listed in `item-whitelist.json` are skipped before transfer batches are built.
 
 ## Whitelist Manager
 
