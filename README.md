@@ -8,8 +8,8 @@ UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** 
 - Optional `--force` mode to transfer all eligible source items
 - Supports item-type filters for:
   - `cards`
-  - `bgs`
-  - `ems`
+  - `backgrounds (bgs)`
+  - `emoticons (ems)`
 - Splits large transfers into safe batches of **256** items per trade
 - Supports a manual whitelist of items that should never be considered for transfer
 - Logs inventory and transfer failures through ASF logging
