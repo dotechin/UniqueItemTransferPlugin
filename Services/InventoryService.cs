@@ -37,7 +37,7 @@ public sealed class InventoryService {
 		return invalidModes.Count == 0;
 	}
 
-	public async Task<InventorySelectionResult> GetUniqueItemsToTransferAsync(Bot sourceBot, Bot targetBot, IReadOnlySet<EAssetType> allowedTypes, IReadOnlySet<AssetMatchKey> whitelistedItems) {
+	public async Task<InventorySelectionResult> GetUniqueItemsToTransferAsync(Bot sourceBot, Bot targetBot, IReadOnlySet<EAssetType> allowedTypes, IReadOnlySet<AssetMatchKey> whitelistedItems, bool force) {
 		ArgumentNullException.ThrowIfNull(sourceBot);
 		ArgumentNullException.ThrowIfNull(targetBot);
 		ArgumentNullException.ThrowIfNull(allowedTypes);
@@ -45,12 +45,14 @@ public sealed class InventoryService {
 
 		HashSet<AssetMatchKey> targetOwnedKeys = [];
 
-		await foreach (Asset asset in targetBot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID)) {
-			if (!IsEligibleAsset(asset, allowedTypes, requireTradable: false)) {
-				continue;
-			}
+		if (!force) {
+			await foreach (Asset asset in targetBot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID)) {
+				if (!IsEligibleAsset(asset, allowedTypes, requireTradable: false)) {
+					continue;
+				}
 
-			targetOwnedKeys.Add(AssetMatchKey.FromAsset(asset));
+				targetOwnedKeys.Add(AssetMatchKey.FromAsset(asset));
+			}
 		}
 
 		HashSet<AssetMatchKey> selectedKeys = [];
@@ -66,6 +68,11 @@ public sealed class InventoryService {
 
 			if (whitelistedItems.Contains(key)) {
 				whitelistedKeysSeen.Add(key);
+				continue;
+			}
+
+			if (force) {
+				uniqueItems.Add(new Asset(asset.AppID, asset.ContextID, asset.ClassID, 1, asset.Description?.DeepClone(), asset.AssetID, asset.InstanceID));
 				continue;
 			}
 

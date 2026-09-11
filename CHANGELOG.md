@@ -4,6 +4,12 @@ All notable changes to UniqueItemTransferPlugin will be documented here.
 
 ## Unreleased
 
+## [1.2.10] — 2026-09-11
+
+### Changed
+- Restored `--force` support for `unique`; accepted syntax is `unique <bot1> <bot2> [modes] [--force]`.
+- `--force` transfers all eligible source items without checking destination ownership.
+
 ## [1.2.9] — 2026-09-11
 
 ### Changed

@@ -62,7 +62,7 @@ public sealed class TransferService {
 		}
 
 		if (args.Count < 3) {
-			return requestingBot.Commands.FormatBotResponse($"Usage: {UniqueCommand} <bot1> <bot2> [modes]");
+			return requestingBot.Commands.FormatBotResponse($"Usage: {UniqueCommand} <bot1> <bot2> [modes] [--force]");
 		}
 
 		if (!TryGetBot(args[1], out Bot? sourceBot) || (sourceBot == null) || !TryGetBot(args[2], out Bot? targetBot) || (targetBot == null)) {
@@ -77,7 +77,7 @@ public sealed class TransferService {
 			return requestingBot.Commands.FormatBotResponse("Both bots must be connected and logged on before transferring items.");
 		}
 
-		List<string> modeTokens = args.Skip(3).ToList();
+		(bool force, List<string> modeTokens) = ParseArguments(args.Skip(3));
 
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out List<string> normalizedModes, out List<string> invalidModes)) {
 			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems.");
@@ -87,7 +87,7 @@ public sealed class TransferService {
 		InventorySelectionResult selectionResult;
 
 		try {
-			selectionResult = await inventoryService.GetUniqueItemsToTransferAsync(sourceBot, targetBot, allowedTypes, whitelistedItems).ConfigureAwait(false);
+			selectionResult = await inventoryService.GetUniqueItemsToTransferAsync(sourceBot, targetBot, allowedTypes, whitelistedItems, force).ConfigureAwait(false);
 		} catch (Exception exception) {
 			sourceBot.ArchiLogger.LogGenericWarningException(exception);
 			return requestingBot.Commands.FormatBotResponse($"Failed to inspect inventories: {exception.Message}");
@@ -105,6 +105,7 @@ public sealed class TransferService {
 			SourceBotName = sourceBot.BotName,
 			TargetBotName = targetBot.BotName,
 			Modes = normalizedModes,
+			Force = force,
 			WhitelistedUniqueItemCount = selectionResult.WhitelistedUniqueItemCount,
 			Batches = [.. batchingService.CreateBatches(uniqueItems)]
 		};
@@ -179,8 +180,9 @@ public sealed class TransferService {
 		response.AppendLine("Available commands:")
 			.AppendLine()
 			.AppendLine("Transfer:")
-			.AppendLine($"  {UniqueCommand} <bot1> <bot2> [modes]")
+			.AppendLine($"  {UniqueCommand} <bot1> <bot2> [modes] [--force]")
 			.AppendLine("    Immediately sends unique-item trade offers. Modes: all (default), cards, bgs, ems.")
+			.AppendLine("    --force: transfer all eligible items, skipping destination duplicate check.")
 			.AppendLine()
 			.AppendLine("Whitelist Manager:")
 			.AppendLine($"  {WlAddCommand} <botname> [modes]")
@@ -218,6 +220,24 @@ public sealed class TransferService {
 			.Append("    Permanently remove all whitelist entries.");
 
 		return response.ToString();
+	}
+
+	private static (bool Force, List<string> Modes) ParseArguments(IEnumerable<string> rawArguments) {
+		bool force = false;
+		List<string> modes = [];
+
+		foreach (string argument in rawArguments) {
+			switch (argument.ToLowerInvariant()) {
+				case "--force":
+					force = true;
+					break;
+				default:
+					modes.Add(argument);
+					break;
+			}
+		}
+
+		return (force, modes);
 	}
 
 	private static bool TryGetBot(string botName, out Bot? bot) {
