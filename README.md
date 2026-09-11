@@ -1,11 +1,10 @@
-# UniqueItemTransferPlugin 1.2.8
+# UniqueItemTransferPlugin 1.2.9
 
 UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
 ## Features
 
 - Transfers only items the destination bot does **not** already own
-- Optional `--force` mode to transfer all eligible source items
 - Supports item-type filters for:
   - `cards`
   - `backgrounds (bgs)`
@@ -18,7 +17,7 @@ UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** 
 
 Run any plugin command with `--help` to print the full command list with short descriptions.
 
-### `unique <bot1> <bot2> [modes] [--force]`
+### `unique <bot1> <bot2> [modes]`
 
 Immediately sends trade offers for unique items from `<bot1>` to `<bot2>`, ready for Steam Guard mobile approval when required.
 
@@ -28,7 +27,6 @@ Examples:
 unique MAIN DEPOSIT
 unique MAIN DEPOSIT cards,bgs
 unique MAIN DEPOSIT ems
-unique MAIN DEPOSIT --force
 ```
 
 Behavior:
@@ -36,7 +34,6 @@ Behavior:
 - No mode list means `all`
 - `bgs` filters profile backgrounds and `ems` filters emoticons
 - Trade offers are sent immediately; approve them in Steam Guard when ASF reports mobile approval is required
-- `--force` transfers all eligible source items (still honoring mode filters and whitelist), without checking whether the destination already owns matching items
 
 ### Whitelist
 

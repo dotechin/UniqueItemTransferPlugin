@@ -4,6 +4,12 @@ All notable changes to UniqueItemTransferPlugin will be documented here.
 
 ## Unreleased
 
+## [1.2.9] — 2026-09-11
+
+### Changed
+- Removed `--force` from the `unique` command; supported syntax is now `unique <bot1> <bot2> [modes]`.
+- `unique` now always transfers only items the destination bot does not already own.
+
 ## [1.2.8] — 2026-09-04
 
 ### Changed
