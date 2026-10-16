@@ -1,15 +1,17 @@
-# UniqueItemTransferPlugin 1.2.10
+# UniqueItemTransferPlugin 1.3.0
 
-UniqueItemTransferPlugin is an ArchiSteamFarm plugin that moves only **unique** Steam Community items (app **753**, context **6**) from one ASF bot to another.
+UniqueItemTransferPlugin is an ArchiSteamFarm plugin that transfers eligible Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
 ## Features
 
-- Transfers only items the destination bot does **not** already own
+- Transfers only items the destination bot does **not** already own for cards, backgrounds, and emoticons
+- Transfers booster packs without checking whether the destination bot already owns matching packs
 - Optional `--force` mode to transfer all eligible source items
 - Supports item-type filters for:
   - `cards`
   - `backgrounds (bgs)`
   - `emoticons (ems)`
+  - `boosters (bps)`
 - Splits large transfers into safe batches of **256** items per trade
 - Supports a manual whitelist of items that should never be considered for transfer
 - Logs inventory and transfer failures through ASF logging
@@ -28,19 +30,22 @@ Examples:
 unique MAIN DEPOSIT
 unique MAIN DEPOSIT cards,bgs
 unique MAIN DEPOSIT ems
+unique MAIN DEPOSIT boosters
+unique MAIN DEPOSIT bps
 unique MAIN DEPOSIT --force
 ```
 
 Behavior:
 
-- No mode list means `all`
-- `bgs` filters profile backgrounds and `ems` filters emoticons
+- No mode list means `all` (cards, backgrounds, emoticons, and booster packs)
+- `bgs` filters profile backgrounds, `ems` filters emoticons, and `boosters`/`bps` filters booster packs
 - Trade offers are sent immediately; approve them in Steam Guard when ASF reports mobile approval is required
 - `--force` transfers all eligible source items (still honoring mode filters and whitelist), without checking whether the destination already owns matching items
+- Booster packs are transferred without destination ownership checks, including when selected with `all` or another mode; booster packs are not filtered by the whitelist
 
 ### Whitelist
 
-The whitelist protects specific items from transfer, even if they match transfer filters. Items listed in `item-whitelist.json` are skipped before transfer batches are built.
+The whitelist protects matching non-booster items from transfer, even if they match transfer filters. Items listed in `item-whitelist.json` are skipped before transfer batches are built. Booster packs are not filtered by the whitelist.
 
 ## Whitelist Manager
 

@@ -4,6 +4,14 @@ All notable changes to UniqueItemTransferPlugin will be documented here.
 
 ## Unreleased
 
+## [1.3.0] — 2026-10-16
+
+### Added
+- Added booster-pack transfers via `boosters` and `bps` modes; booster packs are included in `all`.
+
+### Changed
+- Booster packs transfer without checking destination ownership and are not filtered by the whitelist.
+
 ## [1.2.10] — 2026-09-11
 
 ### Changed
