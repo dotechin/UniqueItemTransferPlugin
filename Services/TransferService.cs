@@ -80,7 +80,7 @@ public sealed class TransferService {
 		(bool force, List<string> modeTokens) = ParseArguments(args.Skip(3));
 
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out List<string> normalizedModes, out List<string> invalidModes)) {
-			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems.");
+			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems, boosters (bps).");
 		}
 
 		HashSet<AssetMatchKey> whitelistedItems = [.. whitelistService.Load().Entries.Select(static entry => entry.ToKey())];
@@ -181,7 +181,7 @@ public sealed class TransferService {
 			.AppendLine()
 			.AppendLine("Transfer:")
 			.AppendLine($"  {UniqueCommand} <bot1> <bot2> [modes] [--force]")
-			.AppendLine("    Immediately sends unique-item trade offers. Modes: all (default), cards, bgs, ems.")
+			.AppendLine("    Immediately sends unique-item trade offers. Modes: all (default), cards, bgs, ems, boosters (bps).")
 			.AppendLine("    --force: transfer all eligible items, skipping destination duplicate check.")
 			.AppendLine()
 			.AppendLine("Whitelist Manager:")
@@ -276,7 +276,7 @@ public sealed class TransferService {
 		List<string> modeTokens = args.Skip(2).ToList();
 
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out _, out List<string> invalidModes)) {
-			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems.");
+			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems, boosters (bps).");
 		}
 
 		try {
@@ -371,7 +371,7 @@ public sealed class TransferService {
 		List<string> modeTokens = args.Skip(3).ToList();
 
 		if (!inventoryService.TryResolveModes(modeTokens, out HashSet<ArchiSteamFarm.Steam.Data.EAssetType> allowedTypes, out List<string> normalizedModes, out List<string> invalidModes)) {
-			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems.");
+			return requestingBot.Commands.FormatBotResponse($"Unsupported modes: {string.Join(", ", invalidModes)}. Supported modes: all, cards, bgs, ems, boosters (bps).");
 		}
 
 		List<WhitelistEntry> inventoryEntries;
