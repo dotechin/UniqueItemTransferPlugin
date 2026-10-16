@@ -6,10 +6,11 @@ namespace UniqueItemTransferPlugin.Services;
 
 public sealed class InventoryService {
 	private static readonly IReadOnlyDictionary<string, IReadOnlySet<EAssetType>> ModeMappings = new Dictionary<string, IReadOnlySet<EAssetType>>(StringComparer.OrdinalIgnoreCase) {
-		["all"] = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard, EAssetType.ProfileBackground, EAssetType.Emoticon },
+		["all"] = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard, EAssetType.ProfileBackground, EAssetType.Emoticon, EAssetType.BoosterPack },
 		["cards"] = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard },
 		["bgs"] = new HashSet<EAssetType> { EAssetType.ProfileBackground },
-		["ems"] = new HashSet<EAssetType> { EAssetType.Emoticon }
+		["ems"] = new HashSet<EAssetType> { EAssetType.Emoticon },
+		["boosters"] = new HashSet<EAssetType> { EAssetType.BoosterPack }
 	};
 
 	public bool TryResolveModes(IEnumerable<string> requestedModes, out HashSet<EAssetType> assetTypes, out List<string> normalizedModes, out List<string> invalidModes) {
@@ -61,6 +62,11 @@ public sealed class InventoryService {
 
 		await foreach (Asset asset in sourceBot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID, tradableOnly: true)) {
 			if (!IsEligibleAsset(asset, allowedTypes, requireTradable: true)) {
+				continue;
+			}
+
+			if (asset.Type == EAssetType.BoosterPack) {
+				uniqueItems.Add(new Asset(asset.AppID, asset.ContextID, asset.ClassID, 1, asset.Description?.DeepClone(), asset.AssetID, asset.InstanceID));
 				continue;
 			}
 
