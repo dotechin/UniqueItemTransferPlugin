@@ -10,7 +10,8 @@ public sealed class InventoryService {
 		["cards"] = new HashSet<EAssetType> { EAssetType.TradingCard, EAssetType.FoilTradingCard },
 		["bgs"] = new HashSet<EAssetType> { EAssetType.ProfileBackground },
 		["ems"] = new HashSet<EAssetType> { EAssetType.Emoticon },
-		["boosters"] = new HashSet<EAssetType> { EAssetType.BoosterPack }
+		["boosters"] = new HashSet<EAssetType> { EAssetType.BoosterPack },
+		["bps"] = new HashSet<EAssetType> { EAssetType.BoosterPack }
 	};
 
 	public bool TryResolveModes(IEnumerable<string> requestedModes, out HashSet<EAssetType> assetTypes, out List<string> normalizedModes, out List<string> invalidModes) {
