@@ -47,7 +47,7 @@ public sealed class InventoryService {
 
 		HashSet<AssetMatchKey> targetOwnedKeys = [];
 
-		if (!force) {
+		if (!force && (allowedTypes.Count != 1 || !allowedTypes.Contains(EAssetType.BoosterPack))) {
 			await foreach (Asset asset in targetBot.ArchiHandler.GetMyInventoryAsync(Asset.SteamAppID, Asset.SteamCommunityContextID)) {
 				if (!IsEligibleAsset(asset, allowedTypes, requireTradable: false)) {
 					continue;
