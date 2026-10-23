@@ -4,6 +4,11 @@ All notable changes to UniqueItemTransferPlugin will be documented here.
 
 ## Unreleased
 
+## [1.4.0] — 2026-10-23
+
+### Added
+- Added `maxedtransfer [BotA] BotB` to send non-foil trading cards from level 5 badges to another ASF bot in one trade offer.
+
 ## [1.3.0] — 2026-10-16
 
 ### Added

@@ -52,6 +52,7 @@ public sealed class TransferService {
 			WlListCommand => await HandleWlListAsync(bot, access, args, steamID).ConfigureAwait(false),
 			WlRemoveCommand => HandleWlRemove(bot, access, args),
 			WlClearCommand => HandleWlClear(bot, access, args),
+			MaxedTransferService.MaxedTransferCommand => await MaxedTransferService.Instance.HandleMaxedTransferAsync(bot, access, args).ConfigureAwait(false),
 			_ => null
 		};
 	}
@@ -161,7 +162,7 @@ public sealed class TransferService {
 		return requestingBot.Commands.FormatBotResponse($"Transfer {request.TransferId} completed successfully: {request.TotalItemCount} items in {completedBatchCount} batch(es). Trade offers: {(tradeOfferIds.Count > 0 ? string.Join(", ", tradeOfferIds) : "created without retrievable IDs")}{BuildMobileApprovalSummarySuffix(mobileApprovalOfferIds)}{BuildWhitelistSummarySuffix(request)}");
 	}
 
-	private static bool IsKnownCommand(string command) => command is UniqueCommand or WlAddCommand or WlListCommand or WlRemoveCommand or WlClearCommand;
+	private static bool IsKnownCommand(string command) => command is UniqueCommand or WlAddCommand or WlListCommand or WlRemoveCommand or WlClearCommand or MaxedTransferService.MaxedTransferCommand;
 
 	private static bool IsHelpRequest(IReadOnlyList<string> args) {
 		for (int i = 1; i < args.Count; i++) {
@@ -183,6 +184,8 @@ public sealed class TransferService {
 			.AppendLine($"  {UniqueCommand} <bot1> <bot2> [modes] [--force]")
 			.AppendLine("    Immediately sends unique-item trade offers. Modes: all (default), cards, bgs, ems, boosters (bps).")
 			.AppendLine("    --force: transfer all eligible items, skipping destination duplicate check.")
+			.AppendLine($"  {MaxedTransferService.MaxedTransferCommand} [BotA] BotB")
+			.AppendLine("    Sends non-foil trading cards from level 5 (maxed) badges of BotA (default: this bot) to BotB in one trade offer. ASF bots only.")
 			.AppendLine()
 			.AppendLine("Whitelist Manager:")
 			.AppendLine($"  {WlAddCommand} <botname> [modes]")
