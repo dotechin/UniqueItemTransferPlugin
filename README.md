@@ -1,4 +1,4 @@
-# UniqueItemTransferPlugin 1.3.0
+# UniqueItemTransferPlugin 1.4.0
 
 UniqueItemTransferPlugin is an ArchiSteamFarm plugin that transfers eligible Steam Community items (app **753**, context **6**) from one ASF bot to another.
 
@@ -14,6 +14,7 @@ UniqueItemTransferPlugin is an ArchiSteamFarm plugin that transfers eligible Ste
   - `boosters (bps)`
 - Splits large transfers into safe batches of **256** items per trade
 - Supports a manual whitelist of items that should never be considered for transfer
+- `maxedtransfer` moves spare non-foil trading cards from maxed (level 5) badges to another bot
 - Logs inventory and transfer failures through ASF logging
 
 ## Commands
@@ -42,6 +43,29 @@ Behavior:
 - Trade offers are sent immediately; approve them in Steam Guard when ASF reports mobile approval is required
 - `--force` transfers all eligible source items (still honoring mode filters and whitelist), without checking whether the destination already owns matching items
 - Booster packs are transferred without destination ownership checks, including when selected with `all` or another mode; booster packs are not filtered by the whitelist
+
+### `maxedtransfer [BotA] BotB`
+
+Sends spare trading cards from badges that are already maxed (level 5) from `BotA` to `BotB` in a single trade offer. If `BotA` is omitted, the bot that received the command is used.
+
+Examples:
+
+```text
+maxedtransfer DEPOSIT
+maxedtransfer MAIN DEPOSIT
+```
+
+Behavior:
+
+- Requires **Master** access
+- Only non-foil trading cards are considered; **foil cards are always skipped**
+- Only cards whose non-foil badge is at **level 5** are sent; cards from sets that are not maxed stay in the inventory
+- Badge levels are read from Steam for `BotA`
+- **Botnet only:** both `BotA` and `BotB` must be bots registered in your ASF instance, must be different, and must be connected; arbitrary SteamIDs and external accounts are rejected
+- All matching cards are sent in one trade offer (up to 256 cards); if more match, run the command again to send the rest
+- If the offer needs mobile confirmation and `BotA` has a MobileAuthenticator, it is confirmed automatically; otherwise approve it manually
+- If there are no matching cards, a message is returned and nothing is sent
+- Steam rate limits and trade holds apply; failures are reported in the response and nothing is retried automatically
 
 ### Whitelist
 
